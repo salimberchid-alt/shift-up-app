@@ -273,7 +273,19 @@ export default function ShiftUpLanding(){
   const [lang,setLang]=useState<"fr"|"en">("fr");
   const t=CONTENT[lang];
   const [email,setEmail]=useState("");
+  const [role,setRole]=useState<"worker"|"employer">("worker");
   const [submitted,setSubmitted]=useState(false);
+  const [loading,setLoading]=useState(false);
+
+  const handleWaitlist=async()=>{
+    if(!email)return;
+    setLoading(true);
+    try{
+      await fetch("/api/waitlist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,role})});
+    }catch(e){console.error(e);}
+    setSubmitted(true);
+    setLoading(false);
+  };
 
   return(
     <div style={{background:COLORS.bg,color:COLORS.text,fontFamily:"'Instrument Sans','Inter',system-ui,sans-serif",minHeight:"100vh"}}>
@@ -462,16 +474,16 @@ export default function ShiftUpLanding(){
             ):(
               <>
                 <div style={{display:"flex",gap:10,justifyContent:"center",marginBottom:20}}>
-                  {[t.waitlist.roleWorker,t.waitlist.roleEmployer].map((r,i)=>(
-                    <button key={r} style={{padding:"10px 18px",borderRadius:11,background:i===0?`${COLORS.accent}14`:COLORS.soft,border:`1.5px solid ${i===0?COLORS.accent:COLORS.border}`,color:i===0?COLORS.accent:COLORS.muted,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif"}}>
-                      {r}
+                  {([["worker",t.waitlist.roleWorker],["employer",t.waitlist.roleEmployer]] as const).map(([val,label])=>(
+                    <button key={val} onClick={()=>setRole(val)} style={{padding:"10px 18px",borderRadius:11,background:role===val?`${COLORS.accent}14`:COLORS.soft,border:`1.5px solid ${role===val?COLORS.accent:COLORS.border}`,color:role===val?COLORS.accent:COLORS.muted,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif"}}>
+                      {label}
                     </button>
                   ))}
                 </div>
                 <div style={{display:"flex",gap:10,maxWidth:420,margin:"0 auto 16px"}}>
                   <input type="email" placeholder={t.waitlist.placeholder} value={email} onChange={e=>setEmail(e.target.value)} style={{flex:1}}/>
-                  <button onClick={()=>email&&setSubmitted(true)} style={{padding:"13px 20px",borderRadius:11,background:`linear-gradient(135deg,${COLORS.accent},#FF8A65)`,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Instrument Sans',sans-serif"}}>
-                    {t.waitlist.cta}
+                  <button onClick={handleWaitlist} disabled={loading||!email} style={{padding:"13px 20px",borderRadius:11,background:`linear-gradient(135deg,${COLORS.accent},#FF8A65)`,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Instrument Sans',sans-serif",opacity:loading?0.7:1}}>
+                    {loading?"...":(t.waitlist.cta)}
                   </button>
                 </div>
                 <div style={{fontSize:11,color:COLORS.muted,marginBottom:20}}>{t.waitlist.tag}</div>
@@ -491,25 +503,16 @@ export default function ShiftUpLanding(){
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           {/* Slim-IA monogram */}
           <a href="https://slim-ia.com" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:10}}>
-            <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="34" height="34" rx="9" fill="url(#siaGrad)"/>
-              <text x="17" y="23" textAnchor="middle" fontSize="13" fontWeight="800" fontFamily="'Bricolage Grotesque',Georgia,serif" fill="white" letterSpacing="-0.5">SIA</text>
-              <defs>
-                <linearGradient id="siaGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#FF4D6D"/>
-                  <stop offset="1" stopColor="#FFD166"/>
-                </linearGradient>
-              </defs>
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/sia-white.png" alt="Slim-IA" style={{height:32,width:"auto"}}/>
             <span style={{fontFamily:"'Bricolage Grotesque',serif",fontSize:15,fontWeight:800,color:COLORS.text}}>Slim-ia.com</span>
           </a>
           <span style={{color:COLORS.border}}>·</span>
           <div style={{fontSize:11,color:COLORS.muted}}>{t.footer.tagline}</div>
         </div>
         <div style={{display:"flex",gap:20}}>
-          {t.footer.links.filter(l=>l!=="slim-ia.ca").map(l=>(
-            <a key={l} href="#" style={{fontSize:12,color:COLORS.muted,textDecoration:"none",fontWeight:600}}>{l}</a>
-          ))}
+          <a href="/privacy" style={{fontSize:12,color:COLORS.muted,textDecoration:"none",fontWeight:600}}>{lang==="fr"?"Confidentialité":"Privacy"}</a>
+          <a href="/terms" style={{fontSize:12,color:COLORS.muted,textDecoration:"none",fontWeight:600}}>{lang==="fr"?"Conditions":"Terms"}</a>
         </div>
       </footer>
     </div>
