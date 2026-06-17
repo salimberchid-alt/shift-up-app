@@ -488,13 +488,27 @@ export default function ShiftUpLanding(){
 
       {/* FOOTER */}
       <footer style={{borderTop:`1px solid ${COLORS.border}`,padding:"32px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1200,margin:"0 auto",flexWrap:"wrap",gap:16}}>
-        <div>
-          <div style={{fontFamily:"'Bricolage Grotesque',serif",fontSize:16,fontWeight:800,background:`linear-gradient(135deg,${COLORS.accent},${COLORS.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:4}}>ShiftUp ⚡</div>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          {/* Slim-IA monogram */}
+          <a href="https://slim-ia.com" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"flex",alignItems:"center",gap:10}}>
+            <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="34" height="34" rx="9" fill="url(#siaGrad)"/>
+              <text x="17" y="23" textAnchor="middle" fontSize="13" fontWeight="800" fontFamily="'Bricolage Grotesque',Georgia,serif" fill="white" letterSpacing="-0.5">SIA</text>
+              <defs>
+                <linearGradient id="siaGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#FF4D6D"/>
+                  <stop offset="1" stopColor="#FFD166"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <span style={{fontFamily:"'Bricolage Grotesque',serif",fontSize:15,fontWeight:800,color:COLORS.text}}>Slim-ia.com</span>
+          </a>
+          <span style={{color:COLORS.border}}>·</span>
           <div style={{fontSize:11,color:COLORS.muted}}>{t.footer.tagline}</div>
         </div>
         <div style={{display:"flex",gap:20}}>
-          {t.footer.links.map(l=>(
-            <a key={l} href={l==="slim-ia.ca"?"https://slim-ia.ca":"#"} style={{fontSize:12,color:COLORS.muted,textDecoration:"none",fontWeight:600}}>{l}</a>
+          {t.footer.links.filter(l=>l!=="slim-ia.ca").map(l=>(
+            <a key={l} href="#" style={{fontSize:12,color:COLORS.muted,textDecoration:"none",fontWeight:600}}>{l}</a>
           ))}
         </div>
       </footer>
