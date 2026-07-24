@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShiftUp — Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%238B7CFF'/%3E%3Cstop offset='50%25' stop-color='%235B8CFF'/%3E%3Cstop offset='100%25' stop-color='%236FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='24' fill='url(%23g)'/%3E%3Crect x='27' y='55' width='12' height='24' rx='3' fill='white' fill-opacity='0.65'/%3E%3Crect x='44' y='38' width='12' height='41' rx='3' fill='white' fill-opacity='0.88'/%3E%3Crect x='61' y='22' width='12' height='57' rx='3' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: oklch(0.15 0.015 260);
+    --card: oklch(0.19 0.02 260);
+    --border: oklch(1 0 0 / 0.07);
+    --border-strong: oklch(1 0 0 / 0.14);
+    --text: oklch(0.94 0.01 260);
+    --text-2: oklch(0.8 0.01 260);
+    --muted: oklch(0.6 0.02 260);
+    --muted-2: oklch(0.55 0.02 260);
+    --muted-3: oklch(0.65 0.02 260);
+    --indigo: oklch(0.64 0.19 275);
+    --indigo-soft: oklch(0.64 0.19 275 / 0.18);
+    --indigo-text: oklch(0.78 0.13 275);
+    --teal: oklch(0.72 0.12 185);
+    --teal-soft: oklch(0.72 0.12 185 / 0.18);
+    --teal-text: oklch(0.8 0.1 185);
+    --amber: oklch(0.78 0.14 85);
+    --amber-soft: oklch(0.78 0.14 85 / 0.18);
+    --amber-text: oklch(0.82 0.13 85);
+    --green: oklch(0.72 0.15 150);
+    --green-soft: oklch(0.72 0.15 150 / 0.18);
+    --green-text: oklch(0.8 0.13 150);
+    --rose: oklch(0.68 0.18 20);
+    --rose-soft: oklch(0.68 0.18 20 / 0.18);
+    --rose-text: oklch(0.78 0.14 20);
+    --radius: 14px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Manrope', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { min-height: 100vh; }
+  ::selection { background: oklch(0.64 0.19 275 / 0.4); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: oklch(0.3 0.02 260); border-radius: 6px; }
+
+  /* ---------- Login ---------- */
+  #login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; padding: 24px; position: relative; overflow: hidden; }
+  #login-screen::before, #login-screen::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
+  #login-screen::before { width: 420px; height: 420px; top: -140px; left: -140px; background: radial-gradient(circle, oklch(0.64 0.19 275 / 0.22), transparent 72%); }
+  #login-screen::after { width: 380px; height: 380px; bottom: -160px; right: -160px; background: radial-gradient(circle, oklch(0.72 0.12 185 / 0.18), transparent 72%); }
+  .login-card { position: relative; width: 100%; max-width: 360px; background: oklch(0.19 0.02 260 / 0.72); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--border-strong); border-radius: 22px; padding: 36px 28px; text-align: center; box-shadow: 0 24px 60px -20px rgba(0,0,0,0.5); }
+  .brand-mark { background: linear-gradient(135deg, #8B7CFF, #5B8CFF, #6FE0D0); display: flex; align-items: flex-end; justify-content: center; box-shadow: 0 6px 18px -4px oklch(0.64 0.19 275 / 0.55); }
+  .brand-mark .bar { border-radius: 2px; background: #fff; }
+  .brand-mark-lg { width: 56px; height: 56px; border-radius: 20px; gap: 4px; padding-bottom: 9px; margin: 0 auto 18px; }
+  .brand-mark-lg .bar:nth-child(1) { width: 6px; height: 14px; background: rgba(255,255,255,.65); }
+  .brand-mark-lg .bar:nth-child(2) { width: 6px; height: 24px; background: rgba(255,255,255,.88); }
+  .brand-mark-lg .bar:nth-child(3) { width: 6px; height: 33px; }
+  .brand-mark-sm { width: 26px; height: 26px; border-radius: 9px; gap: 2px; padding-bottom: 4px; box-shadow: 0 3px 10px -3px oklch(0.64 0.19 275 / 0.5); }
+  .brand-mark-sm .bar:nth-child(1) { width: 3px; height: 7px; background: rgba(255,255,255,.65); }
+  .brand-mark-sm .bar:nth-child(2) { width: 3px; height: 12px; background: rgba(255,255,255,.88); }
+  .brand-mark-sm .bar:nth-child(3) { width: 3px; height: 16px; }
+  .login-card h1 { font-size: 18px; margin: 0 0 4px; font-weight: 800; letter-spacing: -0.01em; }
+  .login-card p.sub { color: var(--muted); font-size: 12.5px; margin: 0 0 22px; }
+  .field { text-align: left; margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .field input { width: 100%; background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 11px 12px; color: var(--text); font-size: 14px; outline: none; transition: border-color .15s; font-family: var(--sans); }
+  .field input:focus { border-color: var(--indigo); }
+  button.primary { width: 100%; background: var(--indigo); color: #fff; border: none; border-radius: 9px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; transition: opacity .15s; font-family: var(--sans); }
+  button.primary:hover { opacity: .88; }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  #login-error, #login-info { font-size: 12.5px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; display: none; text-align: left; }
+  #login-error { background: var(--rose-soft); color: var(--rose-text); }
+  #login-info { background: var(--teal-soft); color: var(--teal-text); }
+
+  /* ---------- Shell ---------- */
+  #app { display: none; min-height: 100vh; padding: 28px 40px 60px; }
+  header.topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px oklch(0.72 0.15 150 / 0.7); }
+  .brand .name { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand .sep { font-size: 13px; font-weight: 600; color: var(--muted); padding-left: 8px; border-left: 1px solid var(--border-strong); margin-left: 2px; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  #last-updated { font-size: 12px; color: var(--muted-2); font-family: var(--mono); }
+  .refresh-btn, .logout-btn { display: flex; align-items: center; gap: 6px; background: oklch(0.22 0.02 260); border: 1px solid var(--border-strong); color: var(--text); border-radius: 7px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .refresh-btn:hover { background: oklch(0.26 0.02 260); }
+  .logout-btn { background: transparent; color: var(--text-2); }
+  .logout-btn:hover { border-color: var(--rose); color: var(--rose-text); }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 26px; }
+  .tab-btn { background: transparent; border: none; cursor: pointer; padding: 10px 18px; font-size: 14px; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; font-family: var(--sans); }
+  .tab-btn:hover { color: var(--text-2); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--indigo); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .stat-card .val { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .stat-card .label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .stat-card .sub { font-size: 11px; color: var(--muted-2); margin-top: 2px; font-family: var(--mono); }
+
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin: 0 0 14px; }
+  .two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .donut-wrap { display: flex; align-items: center; justify-content: center; flex: 1; padding: 10px 0; }
+  .donut { width: 170px; height: 170px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .donut-inner { width: 96px; height: 96px; border-radius: 50%; background: var(--card); display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .donut-inner .n { font-size: 22px; font-weight: 800; }
+  .donut-inner .l { font-size: 10px; color: var(--muted-2); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  .bars-wrap { display: flex; align-items: flex-end; gap: 18px; height: 190px; padding: 0 4px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end; }
+  .bar-val { font-size: 11px; font-family: var(--mono); color: var(--text-2); }
+  .bar-fill { width: 100%; max-width: 44px; background: linear-gradient(180deg, var(--amber), oklch(0.55 0.14 85)); border-radius: 6px 6px 3px 3px; min-height: 2px; }
+  .bar-label { font-size: 11px; color: var(--muted-2); font-family: var(--mono); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 0 4px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 12px 4px; border-bottom: 1px solid oklch(1 0 0 / 0.05); }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .badge.worker { background: var(--teal-soft); color: var(--teal-text); }
+  .badge.employer { background: var(--indigo-soft); color: var(--indigo-text); }
+  .badge.freelancer { background: var(--rose-soft); color: var(--rose-text); }
+  .badge.admin { background: var(--amber-soft); color: var(--amber-text); }
+  .badge.active, .badge.live, .badge.completed, .badge.paid_out, .badge.confirmed, .badge.paid, .badge.payé { background: var(--green-soft); color: var(--green-text); }
+  .badge.pending, .badge.requested, .badge.draft, .badge.in_progress, .badge.pending_payment { background: var(--amber-soft); color: var(--amber-text); }
+  .badge.cancelled, .badge.disputed, .badge.rejected, .badge.paused, .badge.suspended { background: var(--rose-soft); color: var(--rose-text); }
+  .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--green-text); }
+  .status-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+  #loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 20; flex-direction: column; gap: 10px; }
+  .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--indigo); border-radius: 999px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay span { color: var(--muted); font-size: 12.5px; }
+
+  .empty-note { color: var(--muted); font-size: 12.5px; text-align: center; padding: 24px; }
+  code { background: oklch(0.22 0.02 260); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; font-size: 11.5px; font-family: var(--mono); }
+
+  .act-btn { border: 1px solid var(--border-strong); background: oklch(0.22 0.02 260); color: var(--text); border-radius: 7px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; margin-right: 6px; margin-bottom: 4px; font-family: var(--sans); }
+  .act-btn:hover { border-color: var(--indigo); }
+  .act-btn.danger { color: var(--rose-text); }
+  .act-btn.danger:hover { border-color: var(--rose); }
+  .act-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: oklch(0.22 0.02 260); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 10px; font-size: 12.5px; z-index: 30; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .role-select { background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 7px; padding: 6px 8px; color: var(--text); font-size: 11.5px; font-weight: 700; font-family: var(--sans); cursor: pointer; }
+  .role-select:disabled { opacity: .5; cursor: not-allowed; }
+
+  .freelancer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .freelancer-grid { grid-template-columns: 1fr; } }
+  .freelancer-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .freelancer-card .fc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .freelancer-card .fc-name { font-weight: 700; font-size: 15px; }
+  .freelancer-card .fc-rating { font-size: 12px; font-weight: 700; color: var(--amber-text); }
+  .fc-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .fc-skill { background: oklch(1 0 0 / 0.06); color: var(--text-2); font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 20px; }
+  .fc-foot { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); border-top: 1px solid oklch(1 0 0 / 0.06); padding-top: 10px; }
+  .fc-foot .rate { font-family: var(--mono); font-weight: 700; color: var(--text-2); }
+</style>
+</head>
+<body>
+
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="brand-mark brand-mark-lg"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <h1>ShiftUp Admin</h1>
+      <p class="sub">Connectez-vous avec votre compte administrateur</p>
+      <div class="field">
+        <label>Courriel</label>
+        <input type="email" id="email" placeholder="admin@shiftup.app" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="primary" id="login-btn">Se connecter</button>
+      <div id="login-error"></div>
+      <div id="login-info"></div>
+    </div>
+  </div>
+
+  <div id="loading-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <span>Chargement des données…</span>
+  </div>
+
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark brand-mark-sm"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="name">ShiftUp</span>
+        <span class="dot" title="En ligne"></span>
+        <span class="sep">Tableau de bord</span>
+      </div>
+      <div class="topbar-right">
+        <span id="last-updated"></span>
+        <button class="refresh-btn" id="refresh-btn">↻ Rafraîchir</button>
+        <button class="logout-btn" id="logout-btn">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-view="overview">Résumé</button>
+      <button class="tab-btn" data-view="revenue">Revenus</button>
+      <button class="tab-btn" data-view="users">Utilisateurs</button>
+      <button class="tab-btn" data-view="freelancers">Freelancers</button>
+      <button class="tab-btn" data-view="jobs">Offres</button>
+      <button class="tab-btn" data-view="listings">Annonces</button>
+      <button class="tab-btn" data-view="moderation">Modération</button>
+      <button class="tab-btn" data-view="bookings">Réservations</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="view active" id="view-overview">
+      <div class="grid" id="overview-stats"></div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Croissance cumulée des utilisateurs</h3>
+          <svg id="growth-svg" viewBox="0 0 480 190" style="width:100%;height:200px;overflow:visible;"></svg>
+        </div>
+        <div class="panel" style="display:flex;flex-direction:column;">
+          <h3>Utilisateurs par rôle</h3>
+          <div class="donut-wrap">
+            <div class="donut" id="role-donut">
+              <div class="donut-inner">
+                <div class="n" id="role-donut-total">0</div>
+                <div class="l">total</div>
+              </div>
+            </div>
+          </div>
+          <div class="legend" id="role-legend"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Inscriptions récentes</h3>
+        <div id="recent-signups"></div>
+      </div>
+    </div>
+
+    <!-- REVENUE -->
+    <div class="view" id="view-revenue">
+      <div class="grid" id="revenue-stats" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div class="panel">
+        <h3>Revenus mensuels</h3>
+        <div class="bars-wrap" id="revenue-bars"></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Transactions récentes</h3>
+          <div id="transactions-table"></div>
+        </div>
+        <div class="panel">
+          <h3>Codes promo</h3>
+          <div id="promo-table"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="view" id="view-users">
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <h3 style="margin:0;">Tous les utilisateurs</h3>
+          <div id="users-total" style="font-size:12px;color:var(--muted-2);font-family:var(--mono);"></div>
+        </div>
+        <div id="users-table"></div>
+      </div>
+    </div>
+
+    <!-- FREELANCERS -->
+    <div class="view" id="view-freelancers">
+      <div class="grid" id="freelancer-stats"></div>
+      <div class="freelancer-grid" id="freelancer-cards"></div>
+    </div>
+
+    <!-- JOBS -->
+    <div class="view" id="view-jobs">
+      <div class="panel">
+        <h3>Toutes les offres d'emploi</h3>
+        <div id="jobs-table"></div>
+      </div>
+    </div>
+
+    <!-- LISTINGS -->
+    <div class="view" id="view-listings">
+      <div class="panel">
+        <h3>Toutes les annonces marketplace</h3>
+        <div id="listings-table"></div>
+      </div>
+    </div>
+
+    <!-- MODERATION -->
+    <div class="view" id="view-moderation">
+      <div class="panel">
+        <h3>File d'attente — postings signalés</h3>
+        <div id="moderation-table"></div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS -->
+    <div class="view" id="view-bookings">
+      <div class="panel">
+        <h3>Toutes les réservations</h3>
+        <div id="bookings-table"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Same public Supabase project + publishable anon key already used by the
+// ShiftUp app — safe to embed client-side, since read access beyond a
+// signed-in user's own rows is gated by is_admin() RLS policies in the DB.
+const SUPABASE_URL = 'https://doeyyowptbnrqfcherdk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_p8ik-qVHxBX-HTjFsVA4Tg_jf_Gn8Fa';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+const fmtMoney = n => '$' + (Number(n) || 0).toLocaleString('fr-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtInt = n => (Number(n) || 0).toLocaleString('fr-CA');
+const fmtDate = d => new Date(d).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' });
+const fmtDateFull = d => new Date(d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+const monthKey = d => { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`; };
+const monthLabel = key => { const [y, m] = key.split('-'); return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('fr-CA', { month: 'short' }); };
+
+const ROLE_COLORS = { worker: 'var(--teal)', employer: 'var(--indigo)', freelancer: 'var(--rose)', admin: 'var(--amber)' };
+const ROLE_COLORS_RAW = { worker: 'oklch(0.72 0.12 185)', employer: 'oklch(0.64 0.19 275)', freelancer: 'oklch(0.68 0.18 20)', admin: 'oklch(0.78 0.14 85)' };
+
+let currentUserId = null;
+let currentUserRole = null;
+
+function showToast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ---------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------
+
+$('#login-btn').addEventListener('click', doLogin);
+$('#password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const email = $('#email').value.trim();
+  const password = $('#password').value;
+  const errEl = $('#login-error');
+  const infoEl = $('#login-info');
+  errEl.style.display = 'none';
+  infoEl.style.display = 'none';
+  if (!email || !password) return;
+
+  $('#login-btn').disabled = true;
+  $('#login-btn').textContent = 'Connexion…';
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  $('#login-btn').disabled = false;
+  $('#login-btn').textContent = 'Se connecter';
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const uid = data.user.id;
+  const { data: profile, error: pErr } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+
+  if (pErr || !profile) {
+    errEl.textContent = "Impossible de lire votre profil.";
+    errEl.style.display = 'block';
+    return;
+  }
+  if (profile.role !== 'admin' && profile.role !== 'owner') {
+    await supabase.auth.signOut();
+    infoEl.innerHTML = `Ce compte n'est pas administrateur.<br/>Dans le SQL Editor de Supabase, exécutez :<br/><code>update profiles set role='admin' where id='${uid}';</code>`;
+    infoEl.style.display = 'block';
+    return;
+  }
+
+  currentUserId = uid;
+  currentUserRole = profile.role;
+  $('.brand .sep').textContent = profile.role === 'owner' ? 'CEO' : 'Tableau de bord';
+  $('#login-screen').style.display = 'none';
+  $('#app').style.display = 'block';
+  loadDashboard();
+}
+
+$('#logout-btn').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  $('#app').style.display = 'none';
+  $('#login-screen').style.display = 'flex';
+});
+
+$('#refresh-btn').addEventListener('click', loadDashboard);
+
+supabase.auth.getSession().then(async ({ data }) => {
+  if (!data.session) return;
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).maybeSingle();
+  if (profile?.role === 'admin' || profile?.role === 'owner') {
+    currentUserId = data.session.user.id;
+    currentUserRole = profile.role;
+    $('.brand .sep').textContent = profile.role === 'owner' ? 'CEO' : 'Tableau de bord';
+    $('#login-screen').style.display = 'none';
+    $('#app').style.display = 'block';
+    loadDashboard();
+  }
+});
+
+// ---------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------
+
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.tab-btn').forEach(b => b.classList.remove('active'));
+    $$('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    $('#view-' + btn.dataset.view).classList.add('active');
+  });
+});
+
+// ---------------------------------------------------------------
+// Data load
+// ---------------------------------------------------------------
+
+async function loadDashboard() {
+  $('#loading-overlay').style.display = 'flex';
+  try {
+    const [
+      profilesRes, jobsRes, matchesRes, paymentsRes,
+      freelancersRes, listingsRes, bookingsRes,
+      promoCodesRes, promoRedemptionsRes,
+    ] = await Promise.all([
+      supabase.from('profiles').select('id, role, name, lang, created_at').order('created_at', { ascending: false }),
+      supabase.from('jobs').select('id, title, company, employer_id, status, flag_status, flagged_by, flagged_at, created_at').order('created_at', { ascending: false }),
+      supabase.from('matches').select('id, status, created_at'),
+      supabase.from('payments').select('id, type, amount, created_at'),
+      supabase.from('freelancer_profiles').select('user_id, display_name, categories, status, rating_avg, rating_count, updated_at'),
+      supabase.from('listings').select('id, title, category, listing_type, freelancer_id, status, flag_status, flagged_by, flagged_at, created_at').order('created_at', { ascending: false }),
+      supabase.from('bookings').select('id, status, buyer_total, platform_take, freelancer_payout, subtotal, discount_amount, created_at, listing_type').order('created_at', { ascending: false }),
+      supabase.from('promo_codes').select('code, discount_pct, max_redemptions, redemption_count, active'),
+      supabase.from('promo_redemptions').select('discount_amount, created_at'),
+    ]);
+
+    const profiles = profilesRes.data ?? [];
+    const jobs = jobsRes.data ?? [];
+    const matches = matchesRes.data ?? [];
+    const payments = paymentsRes.data ?? [];
+    const freelancers = freelancersRes.data ?? [];
+    const listings = listingsRes.data ?? [];
+    const bookings = bookingsRes.data ?? [];
+    const promoCodes = promoCodesRes.data ?? [];
+    const promoRedemptions = promoRedemptionsRes.data ?? [];
+
+    renderOverview({ profiles, jobs, matches, payments, bookings });
+    renderRevenue({ payments, bookings, promoCodes, promoRedemptions, profiles });
+    renderUsers({ profiles });
+    renderFreelancers({ freelancers, listings });
+    renderBookings({ bookings, profiles, freelancers });
+    renderJobsTab({ jobs });
+    renderListingsTab({ listings });
+    renderModeration({ jobs, listings, profiles });
+
+    $('#last-updated').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+
+    const anyErr = [profilesRes, jobsRes, matchesRes, paymentsRes, freelancersRes, listingsRes, bookingsRes, promoCodesRes, promoRedemptionsRes].find(r => r.error);
+    if (anyErr) console.warn('Partial load error:', anyErr.error);
+  } catch (e) {
+    console.error(e);
+    alert('Erreur de chargement: ' + e.message);
+  } finally {
+    $('#loading-overlay').style.display = 'none';
+  }
+}
+
+function statCard(val, label, sub, color) {
+  return `<div class="stat-card"><div class="val" style="${color ? `color:${color};` : ''}">${val}</div><div class="label">${label}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+}
+function badgeSpan(role, label) { return `<span class="badge ${role}">${label ?? role}</span>`; }
+
+// ---------------- Overview ----------------
+function renderOverview({ profiles, jobs, matches, payments, bookings }) {
+  const totalUsers = profiles.length;
+  const workers = profiles.filter(p => p.role === 'worker').length;
+  const employers = profiles.filter(p => p.role === 'employer').length;
+  const freelancers = profiles.filter(p => p.role === 'freelancer').length;
+  const admins = profiles.filter(p => p.role === 'admin').length;
+  const activeJobs = jobs.filter(j => j.status === 'active').length;
+  const matchRevenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const bookingRevenue = bookings.reduce((s, b) => s + Number(b.platform_take || 0), 0);
+  const totalRevenue = matchRevenue + bookingRevenue;
+
+  const now = new Date();
+  const thisMonth = monthKey(now);
+  const newThisMonth = profiles.filter(p => monthKey(p.created_at) === thisMonth).length;
+
+  $('#overview-stats').innerHTML = [
+    statCard(fmtInt(totalUsers), 'Utilisateurs totaux', `+${newThisMonth} ce mois-ci`),
+    statCard(fmtInt(workers), 'Travailleurs', '', 'var(--indigo-text)'),
+    statCard(fmtInt(employers), 'Employeurs', '', 'var(--teal-text)'),
+    statCard(fmtInt(freelancers), 'Freelancers', '', 'var(--amber-text)'),
+    statCard(fmtInt(activeJobs), 'Offres actives', `sur ${jobs.length} au total`),
+    statCard(fmtInt(matches.length), 'Matchs totaux'),
+    statCard(fmtMoney(totalRevenue), 'Revenus totaux', 'Matchs + Marketplace', 'var(--amber-text)'),
+    statCard(fmtInt(bookings.length), 'Réservations'),
+  ].join('');
+
+  // ---- growth chart (SVG line + area, cumulative) ----
+  const growth = {};
+  profiles.forEach(p => { const k = monthKey(p.created_at); growth[k] = (growth[k] || 0) + 1; });
+  const months = Object.keys(growth).sort().slice(-6);
+  let running = profiles.filter(p => monthKey(p.created_at) < (months[0] || '')).length;
+  const cum = months.map(m => (running += growth[m]));
+  const maxCum = Math.max(1, ...cum);
+  const top = 10, bottom = 156, plotH = bottom - top;
+  const xs = months.map((_, i) => 40 + i * ((440 - 40) / Math.max(1, months.length - 1)));
+  const pts = months.map((m, i) => ({ label: monthLabel(m), x: xs[i], y: top + plotH - (cum[i] / maxCum) * plotH }));
+  const linePath = pts.length ? 'M ' + pts.map(p => `${p.x},${p.y}`).join(' L ') : '';
+  const areaPath = pts.length ? linePath + ` L ${xs[xs.length - 1]},${bottom} L 40,${bottom} Z` : '';
+  const gridLines = [0, .25, .5, .75, 1].map(f => top + plotH * f);
+
+  const svg = $('#growth-svg');
+  svg.innerHTML = `
+    ${gridLines.map(y => `<line x1="0" y1="${y}" x2="480" y2="${y}" stroke="oklch(1 0 0 / 0.06)" stroke-width="1"></line>`).join('')}
+    ${pts.length ? `<path d="${areaPath}" fill="url(#growthFill)" stroke="none"></path>
+    <path d="${linePath}" fill="none" stroke="oklch(0.66 0.18 275)" stroke-width="2.5"></path>` : ''}
+    <defs><linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="oklch(0.66 0.18 275 / 0.35)"></stop>
+      <stop offset="100%" stop-color="oklch(0.66 0.18 275 / 0)"></stop>
+    </linearGradient></defs>
+    ${pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="oklch(0.66 0.18 275)"></circle>
+    <text x="${p.x}" y="186" text-anchor="middle" font-size="11" fill="oklch(0.55 0.02 260)" font-family="JetBrains Mono, monospace">${p.label}</text>`).join('')}
+  `;
+  const growthPanel = $('#growth-svg').closest('.panel');
+  growthPanel.querySelector('.empty-note')?.remove();
+  if (!pts.length) growthPanel.querySelector('h3').insertAdjacentHTML('afterend', '<div class="empty-note">Pas encore assez de données.</div>');
+
+  // ---- role donut ----
+  const roleCounts = { worker: workers, employer: employers, freelancer: freelancers, admin: admins };
+  const total = Math.max(1, totalUsers);
+  const order = ['worker', 'employer', 'freelancer', 'admin'];
+  let acc = 0;
+  const stops = order.map(r => {
+    const pct = (roleCounts[r] / total) * 100;
+    const seg = `${ROLE_COLORS_RAW[r]} ${acc}% ${acc + pct}%`;
+    acc += pct;
+    return seg;
+  }).join(', ');
+  $('#role-donut').style.background = totalUsers ? `conic-gradient(${stops})` : 'oklch(0.3 0.02 260)';
+  $('#role-donut-total').textContent = fmtInt(totalUsers);
+  $('#role-legend').innerHTML = order.map(r => {
+    const pct = totalUsers ? Math.round((roleCounts[r] / total) * 100) : 0;
+    return `<div class="legend-item"><div class="legend-dot" style="background:${ROLE_COLORS_RAW[r]};"></div>${labelForRole(r)} ${pct}%</div>`;
+  }).join('');
+
+  const recent = profiles.slice(0, 8);
+  $('#recent-signups').innerHTML = recent.length ? `<table><thead><tr><th>Nom</th><th>Rôle</th><th>Langue</th><th>Inscrit</th></tr></thead><tbody>${
+    recent.map(p => `<tr><td style="font-weight:600;">${p.name || '—'}</td><td>${badgeSpan(p.role)}</td><td style="color:var(--muted-3);">${(p.lang || '').toUpperCase()}</td><td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(p.created_at)}</td></tr>`).join('')
+  }</tbody></table>` : `<div class="empty-note">Aucun utilisateur pour l'instant.</div>`;
+}
+
+function labelForRole(r) { return { worker: 'Travailleurs', employer: 'Employeurs', freelancer: 'Freelancers', admin: 'Admins' }[r] || r; }
+
+// ---------------- Revenue ----------------
+function renderRevenue({ payments, bookings, promoCodes, promoRedemptions, profiles }) {
+  const matchRevenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const platformTake = bookings.reduce((s, b) => s + Number(b.platform_take || 0), 0);
+  const totalRevenue = matchRevenue + platformTake;
+  const allTx = payments.length + bookings.length;
+  const avgTx = allTx ? totalRevenue / allTx : 0;
+
+  const byMonth = {};
+  payments.forEach(p => { const k = monthKey(p.created_at); byMonth[k] = byMonth[k] || 0; byMonth[k] += Number(p.amount || 0); });
+  bookings.forEach(b => { const k = monthKey(b.created_at); byMonth[k] = byMonth[k] || 0; byMonth[k] += Number(b.platform_take || 0); });
+  const months = Object.keys(byMonth).sort().slice(-6);
+  const prevMonthRev = months.length > 1 ? byMonth[months[months.length - 2]] : 0;
+  const lastMonthRev = months.length ? byMonth[months[months.length - 1]] : 0;
+  const momGrowth = prevMonthRev ? ((lastMonthRev - prevMonthRev) / prevMonthRev) * 100 : (lastMonthRev ? 100 : 0);
+
+  $('#revenue-stats').innerHTML = [
+    statCard(fmtMoney(lastMonthRev), 'Revenu ce mois', '', 'var(--amber-text)'),
+    statCard(fmtMoney(avgTx), 'Transaction moyenne'),
+    statCard((momGrowth >= 0 ? '+' : '') + momGrowth.toFixed(1) + '%', 'Croissance MoM', '', momGrowth >= 0 ? 'var(--green-text)' : 'var(--rose-text)'),
+  ].join('');
+
+  const maxRev = Math.max(1, ...months.map(m => byMonth[m]));
+  $('#revenue-bars').innerHTML = months.length ? months.map(m => `
+    <div class="bar-col">
+      <div class="bar-val">${fmtMoney(byMonth[m])}</div>
+      <div class="bar-fill" style="height:${Math.max(2, (byMonth[m] / maxRev) * 100)}%;"></div>
+      <div class="bar-label">${monthLabel(m)}</div>
+    </div>`).join('') : '<div class="empty-note" style="width:100%;">Pas encore de revenus.</div>';
+
+  const nameById = new Map(profiles.map(p => [p.id, p.name]));
+  const txRows = [
+    ...payments.map(p => ({ name: '—', type: p.type, amount: Number(p.amount || 0), date: p.created_at, status: 'Payé' })),
+    ...bookings.filter(b => b.platform_take > 0).map(b => ({ name: '—', type: 'Marketplace', amount: Number(b.platform_take || 0), date: b.created_at, status: b.status === 'cancelled' ? 'Échoué' : (['completed', 'paid_out'].includes(b.status) ? 'Payé' : 'En attente') })),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+
+  $('#transactions-table').innerHTML = txRows.length ? `<table><thead><tr><th>Type</th><th>Montant</th><th>Date</th><th>Statut</th></tr></thead><tbody>${
+    txRows.map(t => `<tr><td style="color:var(--muted-3);">${t.type}</td><td style="font-family:var(--mono);font-weight:700;">${fmtMoney(t.amount)}</td><td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(t.date)}</td><td>${badgeSpan(t.status === 'Payé' ? 'active' : t.status === 'Échoué' ? 'cancelled' : 'pending', t.status)}</td></tr>`).join('')
+  }</tbody></table>` : `<div class="empty-note">Aucune transaction.</div>`;
+
+  $('#promo-table').innerHTML = promoCodes.length ? `<table><thead><tr><th>Code</th><th>Rabais</th><th>Utilisé</th><th>Statut</th></tr></thead><tbody>${
+    promoCodes.map(c => `<tr><td><code>${c.code}</code></td><td>${c.discount_pct}%</td><td style="font-family:var(--mono);">${c.redemption_count}/${c.max_redemptions}</td><td>${badgeSpan(c.active ? 'active' : 'suspended', c.active ? 'actif' : 'inactif')}</td></tr>`).join('')
+  }</tbody></table>` : `<div class="empty-note">Aucun code promo.</div>`;
+}
+
+// ---------------- Users ----------------
+function roleActionButtons(p) {
+  if (p.role === 'owner') return '<span style="color:var(--amber-text);font-size:11px;font-weight:700;">🔒 Propriétaire</span>';
+  if (p.id === currentUserId) return '<span style="color:var(--muted-2);font-size:11px;">— vous —</span>';
+  if (currentUserRole !== 'owner') return '<span style="color:var(--muted-2);font-size:11px;">Réservé au CEO</span>';
+  return `<select class="role-select" data-id="${p.id}">
+    <option value="" disabled ${!['admin', 'moderator'].includes(p.role) ? 'selected' : ''}>— Rôle —</option>
+    <option value="moderator" ${p.role === 'moderator' ? 'selected' : ''}>Modérateur</option>
+    <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
+  </select>`;
+}
+
+function renderUsers({ profiles }) {
+  $('#users-total').textContent = fmtInt(profiles.length) + ' total';
+  $('#users-table').innerHTML = profiles.length ? `<table><thead><tr><th>Nom</th><th>Rôle</th><th>Langue</th><th>Inscrit</th><th>Statut</th><th>Actions</th></tr></thead><tbody>${
+    profiles.slice(0, 150).map(p => `
+      <tr>
+        <td style="font-weight:600;">${p.name || '—'}</td>
+        <td>${badgeSpan(p.role)}</td>
+        <td style="color:var(--muted-3);">${(p.lang || '').toUpperCase()}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(p.created_at)}</td>
+        <td><span class="status-dot">Actif</span></td>
+        <td>${roleActionButtons(p)}</td>
+      </tr>`).join('')
+  }</tbody></table>${profiles.length > 150 ? `<div class="empty-note">Affichage des 150 plus récents (${profiles.length} au total).</div>` : ''}` : `<div class="empty-note">Aucun utilisateur.</div>`;
+
+  $('#users-table').querySelectorAll('.role-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const id = sel.dataset.id;
+      const role = sel.value;
+      const label = { moderator: 'modérateur', admin: 'admin' }[role];
+      if (!confirm(`Changer le rôle de ce compte en ${label} ?`)) return;
+      sel.disabled = true;
+      const { error } = await supabase.rpc('admin_set_profile_role', { p_user_id: id, p_role: role });
+      sel.disabled = false;
+      if (error) { showToast('Erreur: ' + error.message); await loadDashboard(); return; }
+      showToast('Rôle mis à jour.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Freelancers ----------------
+function renderFreelancers({ freelancers, listings }) {
+  const live = freelancers.filter(f => f.status === 'live').length;
+  const activeListings = listings.filter(l => l.status === 'active').length;
+  const rated = freelancers.filter(f => f.rating_count > 0);
+  const overallAvg = rated.length ? (rated.reduce((s, f) => s + Number(f.rating_avg || 0), 0) / rated.length) : 0;
+
+  $('#freelancer-stats').innerHTML = [
+    statCard(fmtInt(freelancers.length), 'Freelancers totaux'),
+    statCard(fmtInt(live), 'Profils en ligne', '', 'var(--green-text)'),
+    statCard(fmtInt(listings.length), 'Annonces totales', `${activeListings} actives`),
+    statCard(overallAvg ? overallAvg.toFixed(1) : '—', 'Note moyenne', '', 'var(--amber-text)'),
+  ].join('');
+
+  const cardColors = ['var(--teal-text)', 'var(--indigo-text)', 'var(--amber-text)', 'var(--rose-text)', 'var(--green-text)'];
+  $('#freelancer-cards').innerHTML = freelancers.length ? freelancers.slice(0, 24).map((f, i) => `
+    <div class="freelancer-card">
+      <div class="fc-top">
+        <div class="fc-name">${f.display_name || 'Freelancer'}</div>
+        <div class="fc-rating">★ ${f.rating_count > 0 ? Number(f.rating_avg).toFixed(1) : '—'}</div>
+      </div>
+      <div class="fc-skills">${(f.categories || []).slice(0, 4).map(c => `<span class="fc-skill">${c}</span>`).join('') || '<span class="fc-skill">—</span>'}</div>
+      <div class="fc-foot">
+        <div>${f.rating_count || 0} avis</div>
+        <div class="rate">${badgeSpan(f.status)}</div>
+      </div>
+    </div>`).join('') : `<div class="empty-note">Aucun freelancer pour l'instant.</div>`;
+}
+
+// ---------------- Jobs / Listings shared status actions ----------------
+function postingStatusButtons(targetType, id, status, flagStatus) {
+  if (flagStatus === 'under_review') return `<span class="badge pending">En révision</span>`;
+  const btns = [];
+  if (status !== 'paused') btns.push(`<button class="act-btn" data-posting-act="status" data-type="${targetType}" data-status="paused" data-id="${id}">Bloquer</button>`);
+  if (status !== 'active') btns.push(`<button class="act-btn ok" data-posting-act="status" data-type="${targetType}" data-status="active" data-id="${id}">Réactiver</button>`);
+  if (status !== 'removed') btns.push(`<button class="act-btn danger" data-posting-act="status" data-type="${targetType}" data-status="removed" data-id="${id}">Retirer</button>`);
+  return btns.join('');
+}
+
+function wirePostingStatusButtons(container) {
+  container.querySelectorAll('[data-posting-act="status"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { type, status, id } = btn.dataset;
+      const label = { paused: 'bloquer', active: 'réactiver', removed: 'retirer définitivement' }[status];
+      if (!confirm(`Confirmer : ${label} ce posting ?`)) return;
+      btn.disabled = true;
+      const rpc = type === 'job' ? 'moderator_set_job_status' : 'moderator_set_listing_status';
+      const idKey = type === 'job' ? 'p_job_id' : 'p_listing_id';
+      const { error } = await supabase.rpc(rpc, { [idKey]: id, p_status: status });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Posting mis à jour.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Jobs tab ----------------
+function renderJobsTab({ jobs }) {
+  $('#jobs-table').innerHTML = jobs.length ? `<table><thead><tr><th>Titre</th><th>Entreprise</th><th>Statut</th><th>Créé</th><th>Actions</th></tr></thead><tbody>${
+    jobs.slice(0, 150).map(j => `
+      <tr>
+        <td style="font-weight:600;">${j.title || '—'}</td>
+        <td style="color:var(--muted-3);">${j.company || '—'}</td>
+        <td>${badgeSpan(j.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(j.created_at)}</td>
+        <td>${postingStatusButtons('job', j.id, j.status, j.flag_status)}</td>
+      </tr>`).join('')
+  }</tbody></table>${jobs.length > 150 ? `<div class="empty-note">Affichage des 150 plus récentes (${jobs.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune offre.</div>`;
+  wirePostingStatusButtons($('#jobs-table'));
+}
+
+// ---------------- Listings tab ----------------
+function renderListingsTab({ listings }) {
+  $('#listings-table').innerHTML = listings.length ? `<table><thead><tr><th>Titre</th><th>Catégorie</th><th>Statut</th><th>Créé</th><th>Actions</th></tr></thead><tbody>${
+    listings.slice(0, 150).map(l => `
+      <tr>
+        <td style="font-weight:600;">${l.title || '—'}</td>
+        <td style="color:var(--muted-3);">${l.category}</td>
+        <td>${badgeSpan(l.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(l.created_at)}</td>
+        <td>${postingStatusButtons('listing', l.id, l.status, l.flag_status)}</td>
+      </tr>`).join('')
+  }</tbody></table>${listings.length > 150 ? `<div class="empty-note">Affichage des 150 plus récentes (${listings.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune annonce.</div>`;
+  wirePostingStatusButtons($('#listings-table'));
+}
+
+// ---------------- Moderation queue ----------------
+function renderModeration({ jobs, listings, profiles }) {
+  const nameById = new Map(profiles.map(p => [p.id, p.name || '—']));
+  const flagged = [
+    ...jobs.filter(j => j.flag_status === 'under_review').map(j => ({ type: 'job', id: j.id, title: j.title, flagged_by: j.flagged_by, flagged_at: j.flagged_at })),
+    ...listings.filter(l => l.flag_status === 'under_review').map(l => ({ type: 'listing', id: l.id, title: l.title, flagged_by: l.flagged_by, flagged_at: l.flagged_at })),
+  ].sort((a, b) => new Date(a.flagged_at) - new Date(b.flagged_at));
+
+  $('#moderation-table').innerHTML = flagged.length ? `<table><thead><tr><th>Titre</th><th>Type</th><th>Signalé par</th><th>Signalé</th><th>Délai de révision</th><th>Actions</th></tr></thead><tbody>${
+    flagged.map(f => {
+      const hoursAgo = (Date.now() - new Date(f.flagged_at).getTime()) / 3600000;
+      const deadlinePct = Math.min(100, (hoursAgo / 48) * 100);
+      const overdue = hoursAgo > 48;
+      return `
+      <tr>
+        <td style="font-weight:600;">${f.title || '—'}</td>
+        <td style="color:var(--muted-3);">${f.type === 'job' ? 'Offre' : 'Annonce'}</td>
+        <td style="color:var(--muted-3);">${nameById.get(f.flagged_by) || '—'}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(f.flagged_at)}</td>
+        <td>${badgeSpan(overdue ? 'disputed' : 'pending', overdue ? `En retard (${Math.round(hoursAgo)}h)` : `${Math.round(hoursAgo)}h / 48h`)}</td>
+        <td>
+          <button class="act-btn ok" data-mod-act="approved" data-type="${f.type}" data-id="${f.id}">Accepter</button>
+          <button class="act-btn danger" data-mod-act="rejected" data-type="${f.type}" data-id="${f.id}">Rejeter</button>
+        </td>
+      </tr>`;
+    }).join('')
+  }</tbody></table>` : `<div class="empty-note">Rien à réviser pour le moment.</div>`;
+
+  $('#moderation-table').querySelectorAll('[data-mod-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const decision = btn.dataset.modAct;
+      const type = btn.dataset.type;
+      const id = btn.dataset.id;
+      let reason = null;
+      if (decision === 'rejected') {
+        reason = prompt('Raison du rejet (envoyée à la personne concernée et au CEO) :');
+        if (reason === null) return;
+        if (!reason.trim()) { showToast('Une raison est requise pour rejeter.'); return; }
+      } else {
+        if (!confirm('Approuver ce posting et retirer le signalement ?')) return;
+      }
+      btn.disabled = true;
+      const { error } = await supabase.rpc('admin_review_posting', {
+        p_target_type: type, p_target_id: id, p_decision: decision, p_reason: reason,
+      });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast(decision === 'approved' ? 'Posting approuvé.' : 'Posting rejeté.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Bookings ----------------
+function renderBookings({ bookings }) {
+  $('#bookings-table').innerHTML = bookings.length ? `<table><thead><tr><th>Type</th><th>Statut</th><th>Créé</th></tr></thead><tbody>${
+    bookings.slice(0, 150).map(b => `
+      <tr>
+        <td style="font-weight:600;">${b.listing_type}</td>
+        <td>${badgeSpan(b.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(b.created_at)}</td>
+      </tr>`).join('')
+  }</tbody></table>${bookings.length > 150 ? `<div class="empty-note">Affichage des 150 plus récentes (${bookings.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune réservation pour l'instant.</div>`;
+}
+</script>
+</body>
+</html>

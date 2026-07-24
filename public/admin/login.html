@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShiftUp — Connexion admin</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%238B7CFF'/%3E%3Cstop offset='50%25' stop-color='%235B8CFF'/%3E%3Cstop offset='100%25' stop-color='%236FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='24' fill='url(%23g)'/%3E%3Crect x='27' y='55' width='12' height='24' rx='3' fill='white' fill-opacity='0.65'/%3E%3Crect x='44' y='38' width='12' height='41' rx='3' fill='white' fill-opacity='0.88'/%3E%3Crect x='61' y='22' width='12' height='57' rx='3' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: oklch(0.15 0.015 260);
+    --card: oklch(0.19 0.02 260);
+    --border: oklch(1 0 0 / 0.07);
+    --border-strong: oklch(1 0 0 / 0.14);
+    --text: oklch(0.94 0.01 260);
+    --muted: oklch(0.6 0.02 260);
+    --indigo: oklch(0.64 0.19 275);
+    --indigo-soft: oklch(0.64 0.19 275 / 0.18);
+    --rose-soft: oklch(0.68 0.18 20 / 0.18);
+    --rose-text: oklch(0.78 0.14 20);
+    --teal-soft: oklch(0.72 0.12 185 / 0.18);
+    --teal-text: oklch(0.8 0.1 185);
+    --radius: 14px;
+    --sans: 'Manrope', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; overflow: hidden; }
+  body::before, body::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; filter: blur(2px); }
+  body::before { width: 420px; height: 420px; top: -140px; left: -140px; background: radial-gradient(circle, oklch(0.64 0.19 275 / 0.22), transparent 72%); }
+  body::after { width: 380px; height: 380px; bottom: -160px; right: -160px; background: radial-gradient(circle, oklch(0.72 0.12 185 / 0.18), transparent 72%); }
+  .login-card { position: relative; width: 100%; max-width: 360px; background: oklch(0.19 0.02 260 / 0.72); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--border-strong); border-radius: 22px; padding: 36px 28px; text-align: center; box-shadow: 0 24px 60px -20px rgba(0,0,0,0.5); }
+  .brand-mark { background: linear-gradient(135deg, #8B7CFF, #5B8CFF, #6FE0D0); display: flex; align-items: flex-end; justify-content: center; box-shadow: 0 6px 18px -4px oklch(0.64 0.19 275 / 0.55); }
+  .brand-mark .bar { border-radius: 2px; background: #fff; }
+  .brand-mark-lg { width: 56px; height: 56px; border-radius: 20px; gap: 4px; padding-bottom: 9px; margin: 0 auto 18px; }
+  .brand-mark-lg .bar:nth-child(1) { width: 6px; height: 14px; background: rgba(255,255,255,.65); }
+  .brand-mark-lg .bar:nth-child(2) { width: 6px; height: 24px; background: rgba(255,255,255,.88); }
+  .brand-mark-lg .bar:nth-child(3) { width: 6px; height: 33px; }
+  .login-card h1 { font-size: 18px; margin: 0 0 4px; font-weight: 800; letter-spacing: -0.01em; }
+  .login-card p.sub { color: var(--muted); font-size: 12.5px; margin: 0 0 22px; }
+  .field { text-align: left; margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .field input { width: 100%; background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 11px 12px; color: var(--text); font-size: 14px; outline: none; transition: border-color .15s; font-family: var(--sans); }
+  .field input:focus { border-color: var(--indigo); }
+  button.primary { width: 100%; background: var(--indigo); color: #fff; border: none; border-radius: 9px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; transition: opacity .15s; font-family: var(--sans); }
+  button.primary:hover { opacity: .88; }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  #login-error, #login-info { font-size: 12.5px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; display: none; text-align: left; }
+  #login-error { background: var(--rose-soft); color: var(--rose-text); }
+  #login-info { background: var(--teal-soft); color: var(--teal-text); }
+  code { background: oklch(0.22 0.02 260); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; font-size: 11.5px; }
+  #checking { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+  <div class="login-card" id="login-card">
+    <div class="brand-mark brand-mark-lg"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    <h1>ShiftUp Admin</h1>
+    <p class="sub" id="sub-label">Connectez-vous pour accéder au tableau de bord</p>
+
+    <div id="checking">Vérification de la session…</div>
+
+    <form id="login-form" style="display:none">
+      <div class="field">
+        <label>Courriel</label>
+        <input type="email" id="email" placeholder="admin@shiftup.app" autocomplete="username" required />
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="primary" id="login-btn">Se connecter</button>
+    </form>
+    <div id="login-error"></div>
+    <div id="login-info"></div>
+  </div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://doeyyowptbnrqfcherdk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_p8ik-qVHxBX-HTjFsVA4Tg_jf_Gn8Fa';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (s) => document.querySelector(s);
+
+function destinationFor(role) {
+  if (role === 'admin' || role === 'owner') return './index.html';
+  if (role === 'moderator') return './moderator.html';
+  return null;
+}
+
+async function routeByRole(userId) {
+  const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+  if (error || !profile) return null;
+  return destinationFor(profile.role);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const email = $('#email').value.trim();
+  const password = $('#password').value;
+  const errEl = $('#login-error');
+  const infoEl = $('#login-info');
+  errEl.style.display = 'none';
+  infoEl.style.display = 'none';
+  if (!email || !password) return;
+
+  $('#login-btn').disabled = true;
+  $('#login-btn').textContent = 'Connexion…';
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  $('#login-btn').disabled = false;
+  $('#login-btn').textContent = 'Se connecter';
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const dest = await routeByRole(data.user.id);
+  if (!dest) {
+    await supabase.auth.signOut();
+    infoEl.innerHTML = `Ce compte n'a pas les permissions requises (admin ou modérateur).<br/>Dans le SQL Editor de Supabase :<br/><code>update profiles set role='admin' where id='${data.user.id}';</code>`;
+    infoEl.style.display = 'block';
+    return;
+  }
+  window.location.href = dest;
+}
+
+$('#login-form').addEventListener('submit', doLogin);
+
+// If already signed in with the right role, skip straight to the dashboard.
+supabase.auth.getSession().then(async ({ data }) => {
+  if (data.session) {
+    const dest = await routeByRole(data.session.user.id);
+    if (dest) {
+      window.location.href = dest;
+      return;
+    }
+  }
+  $('#checking').style.display = 'none';
+  $('#login-form').style.display = 'block';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShiftUp — Modération</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%238B7CFF'/%3E%3Cstop offset='50%25' stop-color='%235B8CFF'/%3E%3Cstop offset='100%25' stop-color='%236FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='24' fill='url(%23g)'/%3E%3Crect x='27' y='55' width='12' height='24' rx='3' fill='white' fill-opacity='0.65'/%3E%3Crect x='44' y='38' width='12' height='41' rx='3' fill='white' fill-opacity='0.88'/%3E%3Crect x='61' y='22' width='12' height='57' rx='3' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: oklch(0.15 0.015 260);
+    --card: oklch(0.19 0.02 260);
+    --border: oklch(1 0 0 / 0.07);
+    --border-strong: oklch(1 0 0 / 0.14);
+    --text: oklch(0.94 0.01 260);
+    --text-2: oklch(0.8 0.01 260);
+    --muted: oklch(0.6 0.02 260);
+    --muted-2: oklch(0.55 0.02 260);
+    --muted-3: oklch(0.65 0.02 260);
+    --indigo: oklch(0.64 0.19 275);
+    --indigo-soft: oklch(0.64 0.19 275 / 0.18);
+    --indigo-text: oklch(0.78 0.13 275);
+    --teal: oklch(0.72 0.12 185);
+    --teal-soft: oklch(0.72 0.12 185 / 0.18);
+    --teal-text: oklch(0.8 0.1 185);
+    --amber: oklch(0.78 0.14 85);
+    --amber-soft: oklch(0.78 0.14 85 / 0.18);
+    --amber-text: oklch(0.82 0.13 85);
+    --green: oklch(0.72 0.15 150);
+    --green-soft: oklch(0.72 0.15 150 / 0.18);
+    --green-text: oklch(0.8 0.13 150);
+    --rose: oklch(0.68 0.18 20);
+    --rose-soft: oklch(0.68 0.18 20 / 0.18);
+    --rose-text: oklch(0.78 0.14 20);
+    --radius: 14px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Manrope', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { min-height: 100vh; }
+  ::selection { background: oklch(0.64 0.19 275 / 0.4); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: oklch(0.3 0.02 260); border-radius: 6px; }
+
+  #login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; padding: 24px; position: relative; overflow: hidden; }
+  #login-screen::before, #login-screen::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
+  #login-screen::before { width: 420px; height: 420px; top: -140px; left: -140px; background: radial-gradient(circle, oklch(0.72 0.12 185 / 0.22), transparent 72%); }
+  #login-screen::after { width: 380px; height: 380px; bottom: -160px; right: -160px; background: radial-gradient(circle, oklch(0.64 0.19 275 / 0.18), transparent 72%); }
+  .login-card { position: relative; width: 100%; max-width: 360px; background: oklch(0.19 0.02 260 / 0.72); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--border-strong); border-radius: 22px; padding: 36px 28px; text-align: center; box-shadow: 0 24px 60px -20px rgba(0,0,0,0.5); }
+  .brand-mark { background: linear-gradient(135deg, #8B7CFF, #5B8CFF, #6FE0D0); display: flex; align-items: flex-end; justify-content: center; box-shadow: 0 6px 18px -4px oklch(0.64 0.19 275 / 0.55); }
+  .brand-mark .bar { border-radius: 2px; background: #fff; }
+  .brand-mark-lg { width: 56px; height: 56px; border-radius: 20px; gap: 4px; padding-bottom: 9px; margin: 0 auto 18px; }
+  .brand-mark-lg .bar:nth-child(1) { width: 6px; height: 14px; background: rgba(255,255,255,.65); }
+  .brand-mark-lg .bar:nth-child(2) { width: 6px; height: 24px; background: rgba(255,255,255,.88); }
+  .brand-mark-lg .bar:nth-child(3) { width: 6px; height: 33px; }
+  .brand-mark-sm { width: 26px; height: 26px; border-radius: 9px; gap: 2px; padding-bottom: 4px; box-shadow: 0 3px 10px -3px oklch(0.64 0.19 275 / 0.5); }
+  .brand-mark-sm .bar:nth-child(1) { width: 3px; height: 7px; background: rgba(255,255,255,.65); }
+  .brand-mark-sm .bar:nth-child(2) { width: 3px; height: 12px; background: rgba(255,255,255,.88); }
+  .brand-mark-sm .bar:nth-child(3) { width: 3px; height: 16px; }
+  .login-card h1 { font-size: 18px; margin: 0 0 4px; font-weight: 800; letter-spacing: -0.01em; }
+  .login-card p.sub { color: var(--muted); font-size: 12.5px; margin: 0 0 22px; }
+  .field { text-align: left; margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .field input { width: 100%; background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 11px 12px; color: var(--text); font-size: 14px; outline: none; transition: border-color .15s; font-family: var(--sans); }
+  .field input:focus { border-color: var(--teal); }
+  button.primary { width: 100%; background: var(--teal); color: oklch(0.15 0.015 260); border: none; border-radius: 9px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; transition: opacity .15s; font-family: var(--sans); }
+  button.primary:hover { opacity: .88; }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  #login-error, #login-info { font-size: 12.5px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; display: none; text-align: left; }
+  #login-error { background: var(--rose-soft); color: var(--rose-text); }
+  #login-info { background: var(--teal-soft); color: var(--teal-text); }
+
+  #app { display: none; min-height: 100vh; padding: 28px 40px 60px; }
+  header.topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px oklch(0.72 0.12 185 / 0.7); }
+  .brand .name { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand .sep { font-size: 13px; font-weight: 600; color: var(--muted); padding-left: 8px; border-left: 1px solid var(--border-strong); margin-left: 2px; }
+  .no-money-tag { font-size: 10px; font-weight: 700; color: var(--muted); background: oklch(0.22 0.02 260); border: 1px solid var(--border); padding: 3px 9px; border-radius: 100px; margin-left: 6px; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  #last-updated { font-size: 12px; color: var(--muted-2); font-family: var(--mono); }
+  .refresh-btn, .logout-btn { display: flex; align-items: center; gap: 6px; background: oklch(0.22 0.02 260); border: 1px solid var(--border-strong); color: var(--text); border-radius: 7px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .refresh-btn:hover { background: oklch(0.26 0.02 260); }
+  .logout-btn { background: transparent; color: var(--text-2); }
+  .logout-btn:hover { border-color: var(--rose); color: var(--rose-text); }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 26px; overflow-x: auto; }
+  .tab-btn { white-space: nowrap; background: transparent; border: none; cursor: pointer; padding: 10px 18px; font-size: 14px; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; font-family: var(--sans); }
+  .tab-btn:hover { color: var(--text-2); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--teal); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .stat-card .val { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .stat-card .label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin: 0 0 14px; }
+  .panel-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid oklch(1 0 0 / 0.05); }
+  .panel-row:last-child { border-bottom: none; }
+
+  .filter-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-row input[type=text] { flex: 1; min-width: 180px; background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 9px 12px; color: var(--text); font-size: 12.5px; outline: none; font-family: var(--sans); }
+  .filter-row select { background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 9px 12px; color: var(--text); font-size: 12.5px; font-family: var(--sans); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 0 4px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 12px 4px; border-bottom: 1px solid oklch(1 0 0 / 0.05); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .badge.worker { background: var(--teal-soft); color: var(--teal-text); }
+  .badge.employer { background: var(--indigo-soft); color: var(--indigo-text); }
+  .badge.freelancer { background: var(--rose-soft); color: var(--rose-text); }
+  .badge.admin, .badge.moderator { background: var(--amber-soft); color: var(--amber-text); }
+  .badge.active, .badge.live, .badge.verified, .badge.completed, .badge.paid_out, .badge.confirmed { background: var(--green-soft); color: var(--green-text); }
+  .badge.pending, .badge.requested, .badge.draft, .badge.in_progress, .badge.unsubmitted { background: var(--amber-soft); color: var(--amber-text); }
+  .badge.suspended, .badge.banned, .badge.disputed, .badge.rejected, .badge.paused, .badge.cancelled { background: var(--rose-soft); color: var(--rose-text); }
+
+  .act-btn { border: 1px solid var(--border-strong); background: oklch(0.22 0.02 260); color: var(--text); border-radius: 7px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; margin-right: 6px; margin-bottom: 4px; font-family: var(--sans); }
+  .act-btn:hover { border-color: var(--teal); }
+  .act-btn.danger { color: var(--rose-text); }
+  .act-btn.danger:hover { border-color: var(--rose); }
+  .act-btn.ok { color: var(--green-text); }
+  .act-btn.ok:hover { border-color: var(--green); }
+  .act-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  #loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 20; flex-direction: column; gap: 10px; }
+  .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 999px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay span { color: var(--muted); font-size: 12.5px; }
+
+  .empty-note { color: var(--muted); font-size: 12.5px; text-align: center; padding: 24px; }
+  code { background: oklch(0.22 0.02 260); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; font-size: 11.5px; font-family: var(--mono); }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: oklch(0.22 0.02 260); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 18px; border-radius: 10px; font-size: 12.5px; z-index: 30; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="brand-mark brand-mark-lg"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <h1>ShiftUp Modération</h1>
+      <p class="sub">Connectez-vous avec votre compte modérateur</p>
+      <div class="field">
+        <label>Courriel</label>
+        <input type="email" id="email" placeholder="mod@shiftup.app" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="primary" id="login-btn">Se connecter</button>
+      <div id="login-error"></div>
+      <div id="login-info"></div>
+    </div>
+  </div>
+
+  <div id="loading-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <span>Chargement des données…</span>
+  </div>
+
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark brand-mark-sm"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="name">ShiftUp</span>
+        <span class="dot" title="En ligne"></span>
+        <span class="sep">Modération</span>
+        <span class="no-money-tag">Aucune donnée financière</span>
+      </div>
+      <div class="topbar-right">
+        <span id="last-updated"></span>
+        <button class="refresh-btn" id="refresh-btn">↻ Rafraîchir</button>
+        <button class="logout-btn" id="logout-btn">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-view="overview">Résumé</button>
+      <button class="tab-btn" data-view="users">Utilisateurs</button>
+      <button class="tab-btn" data-view="jobs">Offres</button>
+      <button class="tab-btn" data-view="listings">Annonces</button>
+      <button class="tab-btn" data-view="verifications">Vérifications ID</button>
+      <button class="tab-btn" data-view="reviews">Avis</button>
+      <button class="tab-btn" data-view="bookings">Réservations</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="view active" id="view-overview">
+      <div class="grid" id="overview-stats"></div>
+      <div class="panel">
+        <h3>Nécessite une action</h3>
+        <div id="action-queue"></div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="view" id="view-users">
+      <div class="panel">
+        <div class="filter-row">
+          <input type="text" id="user-search" placeholder="Rechercher par nom…" />
+          <select id="user-role-filter">
+            <option value="">Tous les rôles</option>
+            <option value="worker">Travailleur</option>
+            <option value="employer">Employeur</option>
+            <option value="freelancer">Freelancer</option>
+            <option value="moderator">Modérateur</option>
+            <option value="admin">Admin</option>
+          </select>
+          <select id="user-status-filter">
+            <option value="">Tous les statuts</option>
+            <option value="active">Actif</option>
+            <option value="suspended">Suspendu</option>
+            <option value="banned">Banni</option>
+          </select>
+        </div>
+        <div id="users-table"></div>
+      </div>
+    </div>
+
+    <!-- JOBS -->
+    <div class="view" id="view-jobs">
+      <div class="panel">
+        <h3>Offres d'emploi</h3>
+        <div id="jobs-table"></div>
+      </div>
+    </div>
+
+    <!-- LISTINGS -->
+    <div class="view" id="view-listings">
+      <div class="panel">
+        <h3>Annonces marketplace</h3>
+        <div id="listings-table"></div>
+      </div>
+    </div>
+
+    <!-- VERIFICATIONS -->
+    <div class="view" id="view-verifications">
+      <div class="panel">
+        <h3>Vérifications d'identité (freelancers)</h3>
+        <div id="verifications-table"></div>
+      </div>
+    </div>
+
+    <!-- REVIEWS -->
+    <div class="view" id="view-reviews">
+      <div class="panel">
+        <h3>Avis</h3>
+        <div id="reviews-table"></div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS -->
+    <div class="view" id="view-bookings">
+      <div class="panel">
+        <h3>Réservations <span style="font-weight:400;color:var(--muted);">— statut seulement, aucun montant</span></h3>
+        <div id="bookings-table"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Same public Supabase project + publishable anon key as the app and the
+// admin dashboard — safe client-side, actual access is gated server-side
+// by is_moderator() RLS policies + SECURITY DEFINER functions (see
+// supabase/migrations/007_moderation.sql). This dashboard never queries
+// `payments` or the money columns of `bookings` — the money-blind
+// boundary is enforced in the database, not just hidden in this UI.
+const SUPABASE_URL = 'https://doeyyowptbnrqfcherdk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_p8ik-qVHxBX-HTjFsVA4Tg_jf_Gn8Fa';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+const fmtDate = d => new Date(d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+
+let state = { profiles: [], jobs: [], listings: [], freelancers: [], reviews: [], bookings: [] };
+let currentUserRole = null;
+
+function showToast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ---------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------
+
+$('#login-btn').addEventListener('click', doLogin);
+$('#password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const email = $('#email').value.trim();
+  const password = $('#password').value;
+  const errEl = $('#login-error');
+  const infoEl = $('#login-info');
+  errEl.style.display = 'none';
+  infoEl.style.display = 'none';
+  if (!email || !password) return;
+
+  $('#login-btn').disabled = true;
+  $('#login-btn').textContent = 'Connexion…';
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  $('#login-btn').disabled = false;
+  $('#login-btn').textContent = 'Se connecter';
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const uid = data.user.id;
+  const { data: profile, error: pErr } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+
+  if (pErr || !profile) {
+    errEl.textContent = "Impossible de lire votre profil.";
+    errEl.style.display = 'block';
+    return;
+  }
+  if (profile.role !== 'moderator' && profile.role !== 'admin' && profile.role !== 'owner') {
+    await supabase.auth.signOut();
+    infoEl.innerHTML = `Ce compte n'est pas modérateur.<br/>Dans le SQL Editor de Supabase, exécutez :<br/><code>update profiles set role='moderator' where id='${uid}';</code>`;
+    infoEl.style.display = 'block';
+    return;
+  }
+
+  currentUserRole = profile.role;
+  $('#login-screen').style.display = 'none';
+  $('#app').style.display = 'block';
+  loadDashboard();
+}
+
+$('#logout-btn').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  $('#app').style.display = 'none';
+  $('#login-screen').style.display = 'flex';
+});
+
+$('#refresh-btn').addEventListener('click', loadDashboard);
+
+supabase.auth.getSession().then(async ({ data }) => {
+  if (!data.session) return;
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).maybeSingle();
+  if (profile?.role === 'moderator' || profile?.role === 'admin' || profile?.role === 'owner') {
+    currentUserRole = profile.role;
+    $('#login-screen').style.display = 'none';
+    $('#app').style.display = 'block';
+    loadDashboard();
+  }
+});
+
+// ---------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------
+
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.tab-btn').forEach(b => b.classList.remove('active'));
+    $$('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    $('#view-' + btn.dataset.view).classList.add('active');
+  });
+});
+
+$('#user-search').addEventListener('input', () => renderUsers());
+$('#user-role-filter').addEventListener('change', () => renderUsers());
+$('#user-status-filter').addEventListener('change', () => renderUsers());
+
+// ---------------------------------------------------------------
+// Data load
+// ---------------------------------------------------------------
+
+async function loadDashboard() {
+  $('#loading-overlay').style.display = 'flex';
+  try {
+    const [profilesRes, jobsRes, listingsRes, freelancersRes, reviewsRes, bookingsRes] = await Promise.all([
+      supabase.from('profiles').select('id, role, name, lang, status, created_at').order('created_at', { ascending: false }),
+      supabase.from('jobs').select('id, title, company, status, employer_id, flag_status, created_at').order('created_at', { ascending: false }),
+      supabase.from('listings').select('id, category, listing_type, title, status, freelancer_id, flag_status, created_at').order('created_at', { ascending: false }),
+      supabase.from('freelancer_profiles').select('user_id, display_name, categories, status, id_verification_status, rating_avg, rating_count, updated_at'),
+      supabase.from('reviews').select('id, booking_id, reviewer_id, reviewee_id, rating, comment, created_at').order('created_at', { ascending: false }),
+      supabase.rpc('bookings_moderation').order('created_at', { ascending: false }),
+    ]);
+
+    state.profiles = profilesRes.data ?? [];
+    state.jobs = jobsRes.data ?? [];
+    state.listings = listingsRes.data ?? [];
+    state.freelancers = freelancersRes.data ?? [];
+    state.reviews = reviewsRes.data ?? [];
+    state.bookings = bookingsRes.data ?? [];
+
+    renderOverview();
+    renderUsers();
+    renderJobs();
+    renderListings();
+    renderVerifications();
+    renderReviews();
+    renderBookings();
+
+    $('#last-updated').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+
+    const anyErr = [profilesRes, jobsRes, listingsRes, freelancersRes, reviewsRes, bookingsRes].find(r => r.error);
+    if (anyErr) console.warn('Partial load error:', anyErr.error);
+  } catch (e) {
+    console.error(e);
+    alert('Erreur de chargement: ' + e.message);
+  } finally {
+    $('#loading-overlay').style.display = 'none';
+  }
+}
+
+function statCard(val, label) {
+  return `<div class="stat-card"><div class="val">${val}</div><div class="label">${label}</div></div>`;
+}
+function badgeSpan(status, label) { return `<span class="badge ${status}">${label ?? status}</span>`; }
+
+// ---------------- Overview ----------------
+function renderOverview() {
+  const { profiles, jobs, listings, freelancers, bookings } = state;
+  const suspended = profiles.filter(p => p.status !== 'active').length;
+  const pendingVerif = freelancers.filter(f => f.id_verification_status === 'pending').length;
+  const disputed = bookings.filter(b => b.status === 'disputed').length;
+  const activeJobs = jobs.filter(j => j.status === 'active').length;
+  const activeListings = listings.filter(l => l.status === 'active').length;
+
+  $('#overview-stats').innerHTML = [
+    statCard(profiles.length, 'Utilisateurs totaux'),
+    statCard(suspended, 'Comptes suspendus/bannis'),
+    statCard(activeJobs, 'Offres actives'),
+    statCard(activeListings, 'Annonces actives'),
+    statCard(pendingVerif, 'Vérifications ID en attente'),
+    statCard(disputed, 'Réservations en litige'),
+  ].join('');
+
+  const items = [];
+  if (pendingVerif) items.push({ text: `${pendingVerif} vérification(s) d'identité en attente`, view: 'verifications' });
+  if (disputed) items.push({ text: `${disputed} réservation(s) en litige à examiner`, view: 'bookings' });
+  const flagged = profiles.filter(p => p.status !== 'active');
+  if (flagged.length) items.push({ text: `${flagged.length} compte(s) suspendu(s) ou banni(s)`, view: 'users' });
+
+  $('#action-queue').innerHTML = items.length
+    ? items.map(i => `<div class="panel-row"><span>${i.text}</span><button class="act-btn" data-goto="${i.view}">Voir →</button></div>`).join('')
+    : `<div class="empty-note">Rien ne nécessite d'action pour le moment.</div>`;
+
+  $('#action-queue').querySelectorAll('[data-goto]').forEach(b => {
+    b.addEventListener('click', () => document.querySelector(`.tab-btn[data-view="${b.dataset.goto}"]`).click());
+  });
+}
+
+// ---------------- Users ----------------
+function renderUsers() {
+  const q = $('#user-search').value.trim().toLowerCase();
+  const roleF = $('#user-role-filter').value;
+  const statusF = $('#user-status-filter').value;
+
+  let rows = state.profiles;
+  if (q) rows = rows.filter(p => (p.name || '').toLowerCase().includes(q));
+  if (roleF) rows = rows.filter(p => p.role === roleF);
+  if (statusF) rows = rows.filter(p => p.status === statusF);
+
+  $('#users-table').innerHTML = rows.length ? `<table><thead><tr><th>Nom</th><th>Rôle</th><th>Statut</th><th>Inscrit</th><th>Actions</th></tr></thead><tbody>${
+    rows.slice(0, 150).map(p => `
+      <tr>
+        <td style="font-weight:600;">${p.name || '—'}</td>
+        <td>${badgeSpan(p.role)}</td>
+        <td>${badgeSpan(p.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(p.created_at)}</td>
+        <td>
+          ${p.role === 'owner' ? '<span style="color:var(--amber-text);font-size:11px;font-weight:700;">🔒 Propriétaire</span>' :
+            (['admin', 'moderator'].includes(p.role) && currentUserRole !== 'admin' && currentUserRole !== 'owner') ? '<span style="color:var(--muted-2);font-size:11px;">Réservé aux admins</span>' : `
+          ${p.status !== 'suspended' ? `<button class="act-btn" data-act="suspend" data-id="${p.id}">Suspendre</button>` : ''}
+          ${p.status !== 'banned' ? `<button class="act-btn danger" data-act="ban" data-id="${p.id}">Bannir</button>` : ''}
+          ${p.status !== 'active' ? `<button class="act-btn ok" data-act="reactivate" data-id="${p.id}">Réactiver</button>` : ''}
+          `}
+        </td>
+      </tr>`).join('')
+  }</tbody></table>${rows.length > 150 ? `<div class="empty-note">Affichage des 150 premiers (${rows.length} au total).</div>` : ''}` : `<div class="empty-note">Aucun utilisateur ne correspond aux filtres.</div>`;
+
+  $('#users-table').querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const act = btn.dataset.act;
+      const statusMap = { suspend: 'suspended', ban: 'banned', reactivate: 'active' };
+      const confirmMsg = { suspend: 'Suspendre ce compte ?', ban: 'Bannir ce compte ? (action sérieuse)', reactivate: 'Réactiver ce compte ?' };
+      if (!confirm(confirmMsg[act])) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('moderator_set_profile_status', { p_user_id: id, p_status: statusMap[act] });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Statut mis à jour.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Jobs ----------------
+function renderJobs() {
+  const { jobs } = state;
+  $('#jobs-table').innerHTML = jobs.length ? `<table><thead><tr><th>Titre</th><th>Entreprise</th><th>Statut</th><th>Créé</th><th>Actions</th></tr></thead><tbody>${
+    jobs.slice(0, 150).map(j => `
+      <tr>
+        <td style="font-weight:600;">${j.title}</td>
+        <td style="color:var(--muted-3);">${j.company || '—'}</td>
+        <td>${badgeSpan(j.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(j.created_at)}</td>
+        <td>
+          ${j.flag_status === 'under_review' ? `<span class="badge pending">Signalé — en révision</span>` : `
+          ${j.status !== 'paused' ? `<button class="act-btn danger" data-act="pause" data-id="${j.id}">Retirer</button>` : ''}
+          ${j.status !== 'active' ? `<button class="act-btn ok" data-act="activate" data-id="${j.id}">Réactiver</button>` : ''}
+          <button class="act-btn" data-flag-act="job" data-id="${j.id}">🚩 Signaler</button>
+          `}
+        </td>
+      </tr>`).join('')
+  }</tbody></table>${jobs.length > 150 ? `<div class="empty-note">Affichage des 150 premières (${jobs.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune offre.</div>`;
+
+  $('#jobs-table').querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const status = btn.dataset.act === 'pause' ? 'paused' : 'active';
+      if (!confirm(btn.dataset.act === 'pause' ? "Retirer cette offre de la plateforme ?" : "Réactiver cette offre ?")) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('moderator_set_job_status', { p_job_id: btn.dataset.id, p_status: status });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Offre mise à jour.');
+      await loadDashboard();
+    });
+  });
+  wireFlagButtons('#jobs-table', 'job');
+}
+
+// ---------------- Listings ----------------
+function renderListings() {
+  const { listings } = state;
+  $('#listings-table').innerHTML = listings.length ? `<table><thead><tr><th>Titre</th><th>Catégorie</th><th>Statut</th><th>Créé</th><th>Actions</th></tr></thead><tbody>${
+    listings.slice(0, 150).map(l => `
+      <tr>
+        <td style="font-weight:600;">${l.title}</td>
+        <td style="color:var(--muted-3);">${l.category}</td>
+        <td>${badgeSpan(l.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(l.created_at)}</td>
+        <td>
+          ${l.flag_status === 'under_review' ? `<span class="badge pending">Signalé — en révision</span>` : `
+          ${l.status !== 'paused' ? `<button class="act-btn danger" data-act="pause" data-id="${l.id}">Retirer</button>` : ''}
+          ${l.status !== 'active' ? `<button class="act-btn ok" data-act="activate" data-id="${l.id}">Réactiver</button>` : ''}
+          <button class="act-btn" data-flag-act="listing" data-id="${l.id}">🚩 Signaler</button>
+          `}
+        </td>
+      </tr>`).join('')
+  }</tbody></table>${listings.length > 150 ? `<div class="empty-note">Affichage des 150 premières (${listings.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune annonce.</div>`;
+
+  $('#listings-table').querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const status = btn.dataset.act === 'pause' ? 'paused' : 'active';
+      if (!confirm(btn.dataset.act === 'pause' ? "Retirer cette annonce de la plateforme ?" : "Réactiver cette annonce ?")) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('moderator_set_listing_status', { p_listing_id: btn.dataset.id, p_status: status });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Annonce mise à jour.');
+      await loadDashboard();
+    });
+  });
+  wireFlagButtons('#listings-table', 'listing');
+}
+
+function wireFlagButtons(containerSel, targetType) {
+  $(containerSel).querySelectorAll('[data-flag-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Signaler ce posting pour révision admin/CEO ? Il passera en statut "en révision".')) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('moderator_flag_posting', { p_target_type: targetType, p_target_id: btn.dataset.id });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Posting signalé pour révision.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Verifications ----------------
+function renderVerifications() {
+  const { freelancers } = state;
+  const rows = [...freelancers].sort((a, b) => (a.id_verification_status === 'pending' ? -1 : 1) - (b.id_verification_status === 'pending' ? -1 : 1));
+  $('#verifications-table').innerHTML = rows.length ? `<table><thead><tr><th>Freelancer</th><th>Catégories</th><th>Vérification</th><th>Profil</th><th>Actions</th></tr></thead><tbody>${
+    rows.slice(0, 150).map(f => `
+      <tr>
+        <td style="font-weight:600;">${f.display_name || '—'}</td>
+        <td style="color:var(--muted-3);">${(f.categories || []).join(', ') || '—'}</td>
+        <td>${badgeSpan(f.id_verification_status)}</td>
+        <td>${badgeSpan(f.status)}</td>
+        <td>
+          ${f.id_verification_status !== 'verified' ? `<button class="act-btn ok" data-act="verified" data-id="${f.user_id}">Approuver</button>` : ''}
+          ${f.id_verification_status !== 'rejected' ? `<button class="act-btn danger" data-act="rejected" data-id="${f.user_id}">Rejeter</button>` : ''}
+        </td>
+      </tr>`).join('')
+  }</tbody></table>${rows.length > 150 ? `<div class="empty-note">Affichage des 150 premiers (${rows.length} au total).</div>` : ''}` : `<div class="empty-note">Aucun freelancer.</div>`;
+
+  $('#verifications-table').querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(btn.dataset.act === 'verified' ? "Approuver cette vérification d'identité ?" : "Rejeter cette vérification d'identité ?")) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('moderator_set_id_verification', { p_user_id: btn.dataset.id, p_status: btn.dataset.act });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Vérification mise à jour.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Reviews ----------------
+function renderReviews() {
+  const { reviews } = state;
+  $('#reviews-table').innerHTML = reviews.length ? `<table><thead><tr><th>Note</th><th>Commentaire</th><th>Date</th><th>Actions</th></tr></thead><tbody>${
+    reviews.slice(0, 150).map(r => `
+      <tr>
+        <td style="color:var(--amber-text);">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td>
+        <td style="color:var(--muted-3);">${r.comment ? r.comment.slice(0, 120) : '—'}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(r.created_at)}</td>
+        <td><button class="act-btn danger" data-act="delete" data-id="${r.id}">Supprimer</button></td>
+      </tr>`).join('')
+  }</tbody></table>${reviews.length > 150 ? `<div class="empty-note">Affichage des 150 derniers (${reviews.length} au total).</div>` : ''}` : `<div class="empty-note">Aucun avis.</div>`;
+
+  $('#reviews-table').querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm("Supprimer définitivement cet avis ?")) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('moderator_delete_review', { p_review_id: btn.dataset.id });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast('Avis supprimé.');
+      await loadDashboard();
+    });
+  });
+}
+
+// ---------------- Bookings (status only) ----------------
+function renderBookings() {
+  const { bookings } = state;
+  $('#bookings-table').innerHTML = bookings.length ? `<table><thead><tr><th>Type</th><th>Quantité</th><th>Statut</th><th>Prévu</th><th>Créé</th></tr></thead><tbody>${
+    bookings.slice(0, 150).map(b => `
+      <tr>
+        <td style="font-weight:600;">${b.listing_type}</td>
+        <td>${b.quantity}</td>
+        <td>${badgeSpan(b.status)}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${b.scheduled_at ? fmtDate(b.scheduled_at) : '—'}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(b.created_at)}</td>
+      </tr>`).join('')
+  }</tbody></table>${bookings.length > 150 ? `<div class="empty-note">Affichage des 150 dernières (${bookings.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune réservation.</div>`;
+}
+</script>
+</body>
+</html>
