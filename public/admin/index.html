@@ -470,7 +470,7 @@ async function loadDashboard() {
       freelancersRes, listingsRes, bookingsRes,
       promoCodesRes, promoRedemptionsRes,
     ] = await Promise.all([
-      supabase.from('profiles').select('id, role, name, lang, created_at').order('created_at', { ascending: false }),
+      supabase.rpc('admin_list_users'),
       supabase.from('jobs').select('id, title, company, employer_id, status, flag_status, flagged_by, flagged_at, created_at').order('created_at', { ascending: false }),
       supabase.from('matches').select('id, status, created_at'),
       supabase.from('payments').select('id, type, amount, created_at'),
@@ -660,12 +660,12 @@ function roleActionButtons(p) {
 
 function renderUsers({ profiles }) {
   $('#users-total').textContent = fmtInt(profiles.length) + ' total';
-  $('#users-table').innerHTML = profiles.length ? `<table><thead><tr><th>Nom</th><th>Rôle</th><th>Langue</th><th>Inscrit</th><th>Statut</th><th>Actions</th></tr></thead><tbody>${
+  $('#users-table').innerHTML = profiles.length ? `<table><thead><tr><th>Nom</th><th>Courriel</th><th>Rôle</th><th>Inscrit</th><th>Statut</th><th>Actions</th></tr></thead><tbody>${
     profiles.slice(0, 150).map(p => `
       <tr>
         <td style="font-weight:600;">${p.name || '—'}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${p.email || '—'}</td>
         <td>${badgeSpan(p.role)}</td>
-        <td style="color:var(--muted-3);">${(p.lang || '').toUpperCase()}</td>
         <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(p.created_at)}</td>
         <td><span class="status-dot">Actif</span></td>
         <td>${roleActionButtons(p)}</td>
