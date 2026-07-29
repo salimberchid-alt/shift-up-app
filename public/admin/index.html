@@ -134,7 +134,9 @@
   .badge.admin { background: var(--amber-soft); color: var(--amber-text); }
   .badge.active, .badge.live, .badge.completed, .badge.paid_out, .badge.confirmed, .badge.paid, .badge.payé { background: var(--green-soft); color: var(--green-text); }
   .badge.pending, .badge.requested, .badge.draft, .badge.in_progress, .badge.pending_payment { background: var(--amber-soft); color: var(--amber-text); }
-  .badge.cancelled, .badge.disputed, .badge.rejected, .badge.paused, .badge.suspended { background: var(--rose-soft); color: var(--rose-text); }
+  .badge.cancelled, .badge.disputed, .badge.rejected, .badge.paused, .badge.suspended, .badge.banned { background: var(--rose-soft); color: var(--rose-text); }
+  .act-btn { background: oklch(0.22 0.02 260); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .act-btn:hover { background: oklch(0.26 0.02 260); }
   .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--green-text); }
   .status-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
 
@@ -275,6 +277,16 @@
           <div id="users-total" style="font-size:12px;color:var(--muted-2);font-family:var(--mono);"></div>
         </div>
         <div id="users-table"></div>
+      </div>
+      <div class="panel" id="ip-block-panel" style="display:none;margin-top:20px;">
+        <h3 style="margin:0 0 4px;">IP bloquées</h3>
+        <p style="margin:0 0 14px;color:var(--muted-2);font-size:12px;">Privilège CEO uniquement — bloque l'accès au tableau de bord web pour cette IP.</p>
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+          <input id="ip-block-input" placeholder="192.168.1.1" style="background:oklch(0.22 0.02 260);border:1px solid var(--border-strong);color:var(--text);border-radius:7px;padding:8px 10px;font-size:13px;font-family:var(--mono);width:160px;" />
+          <input id="ip-block-reason" placeholder="Raison (optionnel)" style="background:oklch(0.22 0.02 260);border:1px solid var(--border-strong);color:var(--text);border-radius:7px;padding:8px 10px;font-size:13px;flex:1;min-width:180px;" />
+          <button id="ip-block-add" class="act-btn" style="color:var(--rose-text);border-color:var(--rose-soft);">Bloquer</button>
+        </div>
+        <div id="ip-block-list"></div>
       </div>
     </div>
 
@@ -494,6 +506,7 @@ async function loadDashboard() {
     renderOverview({ profiles, jobs, matches, payments, bookings });
     renderRevenue({ payments, bookings, promoCodes, promoRedemptions, profiles });
     renderUsers({ profiles });
+    renderIpBlocklist();
     renderFreelancers({ freelancers, listings });
     renderBookings({ bookings, profiles, freelancers });
     renderJobsTab({ jobs });
@@ -649,13 +662,34 @@ function renderRevenue({ payments, bookings, promoCodes, promoRedemptions, profi
 function roleActionButtons(p) {
   if (p.role === 'owner') return '<span style="color:var(--amber-text);font-size:11px;font-weight:700;">🔒 Propriétaire</span>';
   if (p.id === currentUserId) return '<span style="color:var(--muted-2);font-size:11px;">— vous —</span>';
-  if (currentUserRole !== 'owner') return '<span style="color:var(--muted-2);font-size:11px;">Réservé au CEO</span>';
-  return `<select class="role-select" data-id="${p.id}">
-    <option value="" disabled ${!['admin', 'moderator', 'employer'].includes(p.role) ? 'selected' : ''}>— Rôle —</option>
-    <option value="employer" ${p.role === 'employer' ? 'selected' : ''}>Entreprise</option>
-    <option value="moderator" ${p.role === 'moderator' ? 'selected' : ''}>Modérateur</option>
-    <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
-  </select>`;
+
+  const pieces = [];
+
+  if (currentUserRole === 'owner') {
+    pieces.push(`<select class="role-select" data-id="${p.id}">
+      <option value="" disabled ${!['admin', 'moderator', 'employer'].includes(p.role) ? 'selected' : ''}>— Rôle —</option>
+      <option value="employer" ${p.role === 'employer' ? 'selected' : ''}>Entreprise</option>
+      <option value="moderator" ${p.role === 'moderator' ? 'selected' : ''}>Modérateur</option>
+      <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
+    </select>`);
+  }
+
+  // Restrict/suspend: admin + owner (moderators already have this on their own panel).
+  if (currentUserRole === 'admin' || currentUserRole === 'owner') {
+    if (p.status === 'suspended' || p.status === 'banned') {
+      pieces.push(`<button class="act-btn" data-act="reactivate" data-id="${p.id}">Réactiver</button>`);
+    } else {
+      pieces.push(`<button class="act-btn" data-act="suspend" data-id="${p.id}">Suspendre</button>`);
+    }
+  }
+
+  // Permanent delete: owner only, extra "type to confirm" step.
+  if (currentUserRole === 'owner') {
+    pieces.push(`<button class="act-btn" data-act="delete" data-id="${p.id}" data-label="${(p.name || p.email || '').replace(/"/g, '&quot;')}" style="color:var(--rose-text);border-color:var(--rose-soft);">Supprimer</button>`);
+  }
+
+  return pieces.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${pieces.join('')}</div>`
+    : '<span style="color:var(--muted-2);font-size:11px;">—</span>';
 }
 
 function renderUsers({ profiles }) {
@@ -667,7 +701,7 @@ function renderUsers({ profiles }) {
         <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${p.email || '—'}</td>
         <td>${badgeSpan(p.role)}</td>
         <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDateFull(p.created_at)}</td>
-        <td><span class="status-dot">Actif</span></td>
+        <td>${badgeSpan(p.status || 'active', p.status === 'suspended' ? 'Suspendu' : p.status === 'banned' ? 'Banni' : 'Actif')}</td>
         <td>${roleActionButtons(p)}</td>
       </tr>`).join('')
   }</tbody></table>${profiles.length > 150 ? `<div class="empty-note">Affichage des 150 plus récents (${profiles.length} au total).</div>` : ''}` : `<div class="empty-note">Aucun utilisateur.</div>`;
@@ -686,7 +720,73 @@ function renderUsers({ profiles }) {
       await loadDashboard();
     });
   });
+
+  $('#users-table').querySelectorAll('.act-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const act = btn.dataset.act;
+      const id = btn.dataset.id;
+
+      if (act === 'suspend' || act === 'reactivate') {
+        const msg = act === 'suspend' ? 'Suspendre ce compte ?' : 'Réactiver ce compte ?';
+        if (!confirm(msg)) return;
+        btn.disabled = true;
+        const { error } = await supabase.rpc('moderator_set_profile_status', { p_user_id: id, p_status: act === 'suspend' ? 'suspended' : 'active' });
+        if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+        showToast('Statut mis à jour.');
+        await loadDashboard();
+        return;
+      }
+
+      if (act === 'delete') {
+        const label = btn.dataset.label || 'ce compte';
+        if (!confirm(`Supprimer définitivement ${label} ? Cette action est IRRÉVERSIBLE — toutes ses données (offres, matchs, réservations, messages) seront aussi supprimées.`)) return;
+        const typed = prompt(`Pour confirmer, tapez le nom ou courriel exact affiché (${label}) :`);
+        if (typed !== label) { showToast('Confirmation invalide — suppression annulée.'); return; }
+        btn.disabled = true;
+        const { error } = await supabase.rpc('owner_delete_account', { p_user_id: id });
+        if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+        showToast('Compte supprimé.');
+        await loadDashboard();
+      }
+    });
+  });
 }
+
+// ---------------- IP blocklist (owner only) ----------------
+async function renderIpBlocklist() {
+  if (currentUserRole !== 'owner') return;
+  $('#ip-block-panel').style.display = 'block';
+  const { data, error } = await supabase.rpc('owner_list_blocked_ips');
+  if (error) { $('#ip-block-list').innerHTML = `<div class="empty-note">Erreur: ${error.message}</div>`; return; }
+  const ips = data ?? [];
+  $('#ip-block-list').innerHTML = ips.length ? ips.map(r => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div><span style="font-family:var(--mono);font-weight:700;">${r.ip}</span>${r.reason ? ` <span style="color:var(--muted-2);font-size:12px;">— ${r.reason}</span>` : ''}</div>
+      <button class="act-btn" data-ip="${r.ip}" id="unblock-btn">Débloquer</button>
+    </div>`).join('') : '<div class="empty-note">Aucune IP bloquée.</div>';
+
+  $('#ip-block-list').querySelectorAll('[id="unblock-btn"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Débloquer l'IP ${btn.dataset.ip} ?`)) return;
+      const { error } = await supabase.rpc('owner_unblock_ip', { p_ip: btn.dataset.ip });
+      if (error) { showToast('Erreur: ' + error.message); return; }
+      renderIpBlocklist();
+    });
+  });
+}
+
+$('#ip-block-add')?.addEventListener('click', async () => {
+  const ip = $('#ip-block-input').value.trim();
+  const reason = $('#ip-block-reason').value.trim();
+  if (!ip) return;
+  if (!confirm(`Bloquer l'IP ${ip} ? Elle sera refusée sur le tableau de bord web.`)) return;
+  const { error } = await supabase.rpc('owner_block_ip', { p_ip: ip, p_reason: reason || null });
+  if (error) { showToast('Erreur: ' + error.message); return; }
+  $('#ip-block-input').value = '';
+  $('#ip-block-reason').value = '';
+  showToast('IP bloquée.');
+  renderIpBlocklist();
+});
 
 // ---------------- Freelancers ----------------
 function renderFreelancers({ freelancers, listings }) {
