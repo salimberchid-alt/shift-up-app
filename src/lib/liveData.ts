@@ -420,7 +420,7 @@ export async function submitReview(bookingId: string, revieweeId: string, rating
 }
 
 // ---------------------------------------------------------------
-// Freelancer: profile, listings, quotes, earnings
+// Freelancer: profile, listings, earnings
 // ---------------------------------------------------------------
 
 export interface LiveFreelancerProfile {
@@ -497,38 +497,6 @@ export async function saveListing(input: ListingInput): Promise<boolean> {
   return !error;
 }
 
-export interface LiveQuote {
-  id: string;
-  listingId: string;
-  listingTitle: string;
-  buyerId: string;
-  buyerName: string;
-  brief: string;
-  price: number | null;
-  status: string;
-  expiresAt: string;
-}
-
-export async function fetchMyQuotes(): Promise<LiveQuote[]> {
-  const uid = await currentUserId();
-  if (!uid) return [];
-  const { data: myListings } = await supabase.from("listings").select("id, title").eq("freelancer_id", uid);
-  const listingIds = (myListings ?? []).map((l) => l.id);
-  if (!listingIds.length) return [];
-  const titleById = new Map((myListings ?? []).map((l) => [l.id, l.title]));
-  const { data } = await supabase.from("quotes").select("*").in("listing_id", listingIds).order("requested_at", { ascending: false });
-  const rows = data ?? [];
-  if (!rows.length) return [];
-  const buyerIds = [...new Set(rows.map((r) => r.buyer_id))];
-  const { data: buyers } = await supabase.from("profiles").select("id, name").in("id", buyerIds);
-  const buyerNameById = new Map((buyers ?? []).map((p: any) => [p.id, p.name]));
-  return rows.map((r: any) => ({
-    id: r.id, listingId: r.listing_id, listingTitle: titleById.get(r.listing_id) ?? "—",
-    buyerId: r.buyer_id, buyerName: buyerNameById.get(r.buyer_id) ?? "—",
-    brief: r.brief, price: r.price, status: r.status, expiresAt: r.expires_at,
-  }));
-}
-
 export async function setListingStatus(listingId: string, status: "active" | "paused"): Promise<boolean> {
   const { error } = await supabase.from("listings").update({ status }).eq("id", listingId);
   return !error;
@@ -545,12 +513,6 @@ export async function updateFreelancerProfile(fields: { displayName?: string; bi
     ...(fields.radiusKm !== undefined ? { radius_km: fields.radiusKm } : {}),
     updated_at: new Date().toISOString(),
   });
-  return !error;
-}
-
-export async function respondToQuote(quoteId: string, price: number): Promise<boolean> {
-  const { error } = await supabase.from("quotes")
-    .update({ price, status: "quoted", responded_at: new Date().toISOString() }).eq("id", quoteId);
   return !error;
 }
 

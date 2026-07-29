@@ -114,15 +114,48 @@ export function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 bg-black/65 z-[1000] flex items-center justify-center p-6"
+      className="fixed inset-0 bg-black/80 z-[1000] flex items-center justify-center p-6"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}
       onClick={onClose}
     >
-      <div className="glass-panel rounded-[22px] p-7 w-full" style={{ maxWidth }} onClick={(e) => e.stopPropagation()}>
+      <div className="glass-panel modal-card rounded-[22px] p-7 w-full" style={{ maxWidth }} onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
+    </div>
+  );
+}
+
+export function PillGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  columns = 1,
+  name,
+}: {
+  options: readonly { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  columns?: number;
+  name?: string;
+}) {
+  return (
+    <div className="grid gap-2" role="radiogroup" aria-label={name} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          onClick={() => onChange(o.id)}
+          className={`py-2 px-3 rounded-[9px] border text-xs font-bold cursor-pointer transition-colors text-center ${
+            value === o.id ? "border-[#8B7CFF] bg-[#8B7CFF]/10 text-[#B3A6FF]" : "border-white/10 bg-white/[0.03] text-white/50 hover:text-white"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

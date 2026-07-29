@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useLang } from "@/lib/lang";
 import { BrandMark, LangToggle } from "@/components/ui";
 import {
-  Icon, type IconName, Avatar, StatCard, StatusPill, Toast, Modal, MobileTabBar, SideNav, StepTracker,
+  Icon, type IconName, Avatar, StatCard, StatusPill, Toast, Modal, MobileTabBar, SideNav, StepTracker, PillGroup,
 } from "@/components/dashboard/shared";
 import {
-  fetchMyListings, saveListing, setListingStatus, fetchMyQuotes, respondToQuote, fetchMyBookings,
+  fetchMyListings, saveListing, setListingStatus, fetchMyBookings,
   markBookingComplete, requestPayoutRelease, fetchEarnings, fetchMyFreelancerProfile, updateFreelancerProfile,
   fetchMyName, updateMyName, requestConnectOnboarding,
-  type LiveListing, type LiveQuote, type LiveBooking,
+  type LiveListing, type LiveBooking,
 } from "@/lib/liveData";
 import { supabase } from "@/lib/supabaseClient";
 import type { ListingCategory, ListingType } from "@/lib/marketplace";
@@ -24,7 +24,6 @@ function feeSplit(subtotal: number) {
 const LISTING_TYPE_LABEL: Record<ListingType, { fr: string; en: string }> = {
   hourly: { fr: "Horaire", en: "Hourly" },
   package: { fr: "Forfait", en: "Package" },
-  quote: { fr: "Sur devis", en: "Quote" },
 };
 
 const LISTING_STATUS_STYLE: Record<string, { color: string; label: { fr: string; en: string } }> = {
@@ -47,7 +46,6 @@ function categoryLabel(id: string, lang: "fr" | "en") {
 }
 
 function priceLabel(l: LiveListing, lang: "fr" | "en") {
-  if (l.listingType === "quote") return lang === "fr" ? "Sur devis" : "Custom quote";
   if (l.listingType === "hourly") return `$${l.rate ?? 0}/h`;
   return `$${l.packagePrice ?? 0}`;
 }
@@ -100,7 +98,7 @@ function NewListingModal({ onClose, onCreate }: { onClose: () => void; onCreate:
   const [type, setType] = useState<ListingType>("hourly");
   const [price, setPrice] = useState("");
 
-  const canSubmit = title.trim().length > 1 && (type === "quote" || price.trim().length > 0);
+  const canSubmit = title.trim().length > 1 && price.trim().length > 0;
 
   const submit = () => {
     onCreate({
@@ -120,46 +118,38 @@ function NewListingModal({ onClose, onCreate }: { onClose: () => void; onCreate:
       <label htmlFor="l-title" className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
         {isFr ? "Titre" : "Title"}
       </label>
-      <input id="l-title" className="field mb-4" placeholder={isFr ? "Ex. Séance photo produit" : "E.g. Product photo session"} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <input id="l-title" className="field mb-4" placeholder={isFr ? "Titre de votre offre" : "Your listing title"} value={title} onChange={(e) => setTitle(e.target.value)} />
 
-      <label htmlFor="l-cat" className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
+      <div className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
         {isFr ? "Catégorie" : "Category"}
-      </label>
-      <select id="l-cat" className="field mb-4" value={category} onChange={(e) => setCategory(e.target.value as typeof category)}>
-        {CATEGORIES.map((c) => (
-          <option key={c.id} value={c.id}>{c.label[lang]}</option>
-        ))}
-      </select>
+      </div>
+      <div className="mb-4">
+        <PillGroup
+          name={isFr ? "Catégorie" : "Category"}
+          columns={2}
+          value={category}
+          onChange={setCategory}
+          options={CATEGORIES.map((c) => ({ id: c.id, label: c.label[lang] }))}
+        />
+      </div>
 
       <div className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
         {isFr ? "Type d'offre" : "Listing type"}
       </div>
-      <div className="flex gap-2 mb-4">
-        {(["hourly", "package", "quote"] as ListingType[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setType(t)}
-            className={`flex-1 py-2 rounded-[9px] border text-xs font-bold cursor-pointer transition-colors ${
-              type === t ? "border-[#8B7CFF] bg-[#8B7CFF]/10 text-[#B3A6FF]" : "border-white/10 bg-white/[0.03] text-white/50 hover:text-white"
-            }`}
-          >
-            {LISTING_TYPE_LABEL[t][lang]}
-          </button>
-        ))}
+      <div className="mb-4">
+        <PillGroup
+          name={isFr ? "Type d'offre" : "Listing type"}
+          columns={2}
+          value={type}
+          onChange={setType}
+          options={(["hourly", "package"] as ListingType[]).map((t) => ({ id: t, label: LISTING_TYPE_LABEL[t][lang] }))}
+        />
       </div>
 
-      {type === "quote" ? (
-        <p className="text-[12px] text-white/50 leading-relaxed mb-4 bg-white/[0.04] border border-white/10 rounded-[10px] p-3">
-          {isFr ? "Les acheteurs vous enverront un brief et vous répondrez avec un prix unique." : "Buyers will send you a brief and you'll reply with a single price."}
-        </p>
-      ) : (
-        <>
-          <label htmlFor="l-price" className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
-            {type === "hourly" ? (isFr ? "Taux horaire ($)" : "Hourly rate ($)") : isFr ? "Prix du forfait ($)" : "Package price ($)"}
-          </label>
-          <input id="l-price" type="number" min="0" className="field mb-4" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
-        </>
-      )}
+      <label htmlFor="l-price" className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
+        {type === "hourly" ? (isFr ? "Taux horaire ($)" : "Hourly rate ($)") : isFr ? "Prix du forfait ($)" : "Package price ($)"}
+      </label>
+      <input id="l-price" type="number" min="0" className="field mb-4" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
 
       <div className="flex gap-2.5 mt-2">
         <button onClick={onClose} className="flex-1 py-3 rounded-[11px] bg-white/[0.05] border border-white/10 text-white/60 text-[13px] font-bold cursor-pointer hover:text-white transition-colors">
@@ -177,59 +167,16 @@ function NewListingModal({ onClose, onCreate }: { onClose: () => void; onCreate:
   );
 }
 
-function SendQuoteModal({
-  request,
-  onClose,
-  onSend,
-}: {
-  request: LiveQuote | null;
-  onClose: () => void;
-  onSend: (price: number) => void;
-}) {
-  const { lang } = useLang();
-  const isFr = lang === "fr";
-  const [price, setPrice] = useState("");
-  if (!request) return null;
-
-  return (
-    <Modal onClose={onClose} maxWidth={420} ariaLabel={isFr ? "Envoyer un prix" : "Send a quote"}>
-      <h3 className="font-display text-xl font-extrabold text-white mb-1">{isFr ? "Envoyer un prix" : "Send a quote"}</h3>
-      <p className="text-[12.5px] text-white/50 mb-4">{request.buyerName} · {request.listingTitle}</p>
-      <div className="bg-white/[0.04] border border-white/10 rounded-[14px] p-4 mb-5 text-[13px] text-white/75 leading-relaxed">
-        {request.brief}
-      </div>
-      <label htmlFor="q-price" className="block text-[11px] font-bold text-white/50 tracking-wider uppercase mb-1.5">
-        {isFr ? "Votre prix ($)" : "Your price ($)"}
-      </label>
-      <input id="q-price" type="number" min="0" className="field mb-6" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} />
-      <div className="flex gap-2.5">
-        <button onClick={onClose} className="flex-1 py-3 rounded-[11px] bg-white/[0.05] border border-white/10 text-white/60 text-[13px] font-bold cursor-pointer hover:text-white transition-colors">
-          {isFr ? "Annuler" : "Cancel"}
-        </button>
-        <button
-          onClick={() => price.trim() && onSend(Number(price))}
-          disabled={!price.trim()}
-          className="flex-[2] py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer transition-opacity disabled:opacity-35 disabled:cursor-not-allowed"
-        >
-          {isFr ? "Envoyer le prix" : "Send quote"}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 export default function FreelancerDashboard() {
   const { lang } = useLang();
   const isFr = lang === "fr";
-  const [tab, setTab] = useState<"listings" | "requests" | "bookings" | "earnings" | "account">("listings");
+  const [tab, setTab] = useState<"listings" | "bookings" | "earnings" | "account">("listings");
   const [loading, setLoading] = useState(true);
   const [listings, setListings] = useState<LiveListing[]>([]);
-  const [requests, setRequests] = useState<LiveQuote[]>([]);
   const [bookings, setBookings] = useState<LiveBooking[]>([]);
   const [earnings, setEarnings] = useState({ total: 0, pending: 0 });
   const [profile, setProfile] = useState({ ratingAvg: 0, ratingCount: 0, payoutConnected: false, idVerificationStatus: "unsubmitted", bio: "", postal: "" });
   const [showNewListing, setShowNewListing] = useState(false);
-  const [quoteTarget, setQuoteTarget] = useState<LiveQuote | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [account, setAccount] = useState({ name: "", bio: "", postal: "" });
 
@@ -239,11 +186,10 @@ export default function FreelancerDashboard() {
   };
 
   const reload = async () => {
-    const [l, r, b, e, p, name] = await Promise.all([
-      fetchMyListings(), fetchMyQuotes(), fetchMyBookings(), fetchEarnings(), fetchMyFreelancerProfile(), fetchMyName(),
+    const [l, b, e, p, name] = await Promise.all([
+      fetchMyListings(), fetchMyBookings(), fetchEarnings(), fetchMyFreelancerProfile(), fetchMyName(),
     ]);
     setListings(l);
-    setRequests(r);
     setBookings(b);
     setEarnings({ total: e.total, pending: e.pending });
     if (p) {
@@ -264,7 +210,6 @@ export default function FreelancerDashboard() {
     return () => { cancelled = true; };
   }, []);
 
-  const pendingRequestCount = useMemo(() => requests.filter((r) => r.status === "pending").length, [requests]);
   const activeListingCount = useMemo(() => listings.filter((l) => l.status === "active").length, [listings]);
 
   const toggleListing = async (l: LiveListing) => {
@@ -282,16 +227,6 @@ export default function FreelancerDashboard() {
     } else {
       showToast(isFr ? "Erreur — réessayez." : "Error — please try again.");
     }
-  };
-
-  const sendQuote = async (price: number) => {
-    if (!quoteTarget) return;
-    const ok = await respondToQuote(quoteTarget.id, price);
-    if (ok) {
-      setRequests((rs) => rs.map((r) => (r.id === quoteTarget.id ? { ...r, status: "quoted", price } : r)));
-      showToast(isFr ? `Prix de $${price} envoyé!` : `$${price} quote sent!`);
-    }
-    setQuoteTarget(null);
   };
 
   const advanceBooking = async (b: LiveBooking) => {
@@ -334,7 +269,6 @@ export default function FreelancerDashboard() {
 
   const NAV = [
     { id: "listings", icon: "grid" as IconName, label: isFr ? "Mes offres" : "Listings" },
-    { id: "requests", icon: "inbox" as IconName, label: isFr ? "Demandes" : "Requests" },
     { id: "bookings", icon: "package" as IconName, label: isFr ? "Réservations" : "Bookings" },
     { id: "earnings", icon: "card" as IconName, label: isFr ? "Revenus" : "Earnings" },
     { id: "account", icon: "gear" as IconName, label: isFr ? "Compte" : "Account" },
@@ -344,7 +278,6 @@ export default function FreelancerDashboard() {
     <div className="bg-[#0a0810] min-h-screen text-white flex flex-col">
       <Toast message={toast} />
       {showNewListing && <NewListingModal onClose={() => setShowNewListing(false)} onCreate={createListing} />}
-      <SendQuoteModal request={quoteTarget} onClose={() => setQuoteTarget(null)} onSend={sendQuote} />
 
       <header className="glass-pill border-x-0 border-t-0 rounded-none px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-40 gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -357,12 +290,6 @@ export default function FreelancerDashboard() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-[#8B7CFF]/10 border border-[#8B7CFF]/35 rounded-full px-3.5 py-1.5">
-            <span className="text-xs font-extrabold text-[#B3A6FF]">{pendingRequestCount}</span>
-            <span className="hidden sm:inline text-[11px] text-white/50 font-semibold">
-              {isFr ? "demandes en attente" : "pending requests"}
-            </span>
-          </div>
           <button
             onClick={async () => { await supabase.auth.signOut(); window.location.href = "/dashboard"; }}
             className="w-8 h-8 rounded-full bg-white/[0.05] border border-white/10 text-white/50 hover:text-white flex items-center justify-center cursor-pointer"
@@ -416,7 +343,6 @@ export default function FreelancerDashboard() {
                   <div className="flex gap-4 mb-7 flex-wrap">
                     <StatCard icon="grid" label={isFr ? "Offres actives" : "Active listings"} value={String(activeListingCount)} sub={isFr ? `${listings.length} au total` : `${listings.length} total`} color="#8B7CFF" />
                     <StatCard icon="star" label={isFr ? "Note moyenne" : "Avg rating"} value={profile.ratingCount ? profile.ratingAvg.toFixed(1) : "—"} sub={isFr ? `${profile.ratingCount} avis` : `${profile.ratingCount} reviews`} color="#F5B93F" />
-                    <StatCard icon="inbox" label={isFr ? "Demandes" : "Requests"} value={String(pendingRequestCount)} sub={isFr ? "En attente" : "Pending"} color="#7CE0A8" />
                   </div>
 
                   <div className="flex justify-between items-center mb-5 flex-wrap gap-3">
@@ -436,57 +362,6 @@ export default function FreelancerDashboard() {
                       {listings.map((l) => (
                         <ListingCard key={l.id} l={l} onToggle={toggleListing} />
                       ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {tab === "requests" && (
-                <div>
-                  <h2 className="font-display text-[22px] font-extrabold text-white mb-2">{isFr ? "Demandes de prix" : "Quote requests"}</h2>
-                  <p className="text-sm text-white/55 mb-7 max-w-[560px]">
-                    {isFr ? "Répondez dans les 48h avec un prix unique pour ne pas manquer la demande." : "Reply within 48h with a single price so you don't miss the request."}
-                  </p>
-                  {requests.length === 0 ? (
-                    <p className="text-white/50 text-sm py-8 text-center">{isFr ? "Aucune demande pour l'instant." : "No requests yet."}</p>
-                  ) : (
-                    <div className="flex flex-col gap-3.5">
-                      {requests.map((r, i) => {
-                        const hoursLeft = Math.max(0, Math.round((new Date(r.expiresAt).getTime() - Date.now()) / 3600000));
-                        return (
-                          <div key={r.id} className="glass-panel rounded-2xl p-5 flex flex-col gap-3">
-                            <div className="flex items-center gap-3 flex-wrap justify-between">
-                              <div className="flex items-center gap-3">
-                                <Avatar id={i} name={r.buyerName} size={40} />
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-display text-[15px] font-extrabold text-white">{r.buyerName}</span>
-                                    <StatusPill label={r.status} color={r.status === "pending" ? "#F5B93F" : r.status === "quoted" ? "#B3A6FF" : "#7CE0A8"} />
-                                  </div>
-                                  <div className="text-xs text-white/50">{r.listingTitle}</div>
-                                </div>
-                              </div>
-                              {r.status === "pending" && (
-                                <span className="flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#F08A3C]/15 text-[#F5B93F] border border-[#F08A3C]/35">
-                                  <Icon name="clock" size={10} /> {hoursLeft}h {isFr ? "restantes" : "left"}
-                                </span>
-                              )}
-                              {r.price !== null && (
-                                <div className="font-display text-lg font-extrabold text-[#B3A6FF]">${r.price}</div>
-                              )}
-                            </div>
-                            <p className="text-[12.5px] text-white/65 leading-relaxed">{r.brief}</p>
-                            {r.status === "pending" && (
-                              <button
-                                onClick={() => setQuoteTarget(r)}
-                                className="self-start px-4 py-2 rounded-[9px] grad-violet border-none text-white text-xs font-bold cursor-pointer flex items-center gap-1.5"
-                              >
-                                <Icon name="send" size={12} /> {isFr ? "Envoyer un prix" : "Send quote"}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
                     </div>
                   )}
                 </div>

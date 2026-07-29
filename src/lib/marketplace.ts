@@ -6,9 +6,8 @@
  */
 
 export type ListingCategory = 'photography' | 'modeling' | 'ugc' | 'marketing' | 'influencer' | 'other';
-export type ListingType = 'hourly' | 'package' | 'quote';
+export type ListingType = 'hourly' | 'package';
 export type BookingStatus = 'requested' | 'confirmed' | 'in_progress' | 'completed' | 'disputed' | 'paid_out' | 'cancelled';
-export type QuoteStatus = 'pending' | 'quoted' | 'accepted' | 'declined' | 'expired';
 
 export interface PriceBreakdown {
   subtotal: number;
