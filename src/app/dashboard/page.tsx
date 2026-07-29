@@ -106,7 +106,13 @@ function RoleGate() {
       options: { shouldCreateUser: false, emailRedirectTo: "https://www.shift-up.app/dashboard" },
     });
     if (err) {
-      setError(isFr ? "Ce courriel n'est pas encore enregistré." : "This email isn't registered yet.");
+      if (err.status === 429 || err.code === "over_email_send_rate_limit") {
+        setError(isFr
+          ? "Trop de tentatives. Attendez quelques minutes avant de réessayer."
+          : "Too many attempts. Wait a few minutes before trying again.");
+      } else {
+        setError(isFr ? "Ce courriel n'est pas encore enregistré." : "This email isn't registered yet.");
+      }
       return;
     }
     setStatus("sent");
