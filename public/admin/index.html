@@ -204,6 +204,7 @@
       </div>
       <div class="topbar-right">
         <span id="last-updated"></span>
+        <a id="personal-switch-link" href="#" style="display:none;text-decoration:none;background:oklch(0.22 0.02 260);border:1px solid var(--border-strong);color:var(--text);border-radius:7px;padding:7px 14px;font-size:13px;font-weight:600;">Mon tableau de bord →</a>
         <button class="refresh-btn" id="refresh-btn">↻ Rafraîchir</button>
         <button class="logout-btn" id="logout-btn">Déconnexion</button>
       </div>
@@ -352,6 +353,25 @@ function showToast(msg) {
 }
 
 // ---------------------------------------------------------------
+// Personal-dashboard switcher: this staff account may also hold a
+// worker/employer/freelancer profile (e.g. an admin who also picks up
+// shifts). If so, surface a link into the real /dashboard for that role.
+// ---------------------------------------------------------------
+
+async function checkPersonalSwitcher(uid) {
+  const [w, e, f] = await Promise.all([
+    supabase.from('worker_profiles').select('user_id').eq('user_id', uid).maybeSingle(),
+    supabase.from('employer_profiles').select('user_id').eq('user_id', uid).maybeSingle(),
+    supabase.from('freelancer_profiles').select('user_id').eq('user_id', uid).maybeSingle(),
+  ]);
+  if (w.data || e.data || f.data) {
+    const link = $('#personal-switch-link');
+    link.href = '/dashboard?as=personal&back=' + encodeURIComponent('/admin/index.html');
+    link.style.display = 'inline-block';
+  }
+}
+
+// ---------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------
 
@@ -400,6 +420,7 @@ async function doLogin() {
   $('#login-screen').style.display = 'none';
   $('#app').style.display = 'block';
   loadDashboard();
+  checkPersonalSwitcher(uid);
 }
 
 $('#logout-btn').addEventListener('click', async () => {
@@ -420,6 +441,7 @@ supabase.auth.getSession().then(async ({ data }) => {
     $('#login-screen').style.display = 'none';
     $('#app').style.display = 'block';
     loadDashboard();
+    checkPersonalSwitcher(currentUserId);
   }
 });
 

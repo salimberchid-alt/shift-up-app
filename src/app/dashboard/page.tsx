@@ -5,12 +5,13 @@ import { LangProvider, useLang } from "@/lib/lang";
 import { BrandMark } from "@/components/ui";
 import { Icon } from "@/components/dashboard/shared";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchMyRoleProfiles } from "@/lib/liveData";
 import EmployerDashboard from "./EmployerDashboard";
 import WorkerDashboard from "./WorkerDashboard";
 import FreelancerDashboard from "./FreelancerDashboard";
 
 type Role = "employer" | "worker" | "freelancer";
-type GateStatus = "checking" | "need-login" | "sent" | "unauthorized" | "redirecting" | "ok";
+type GateStatus = "checking" | "need-login" | "sent" | "unauthorized" | "redirecting" | "ok" | "choose-personal" | "no-personal";
 
 // Moderator/admin staff already have a working, independently-hardened
 // role-routed surface at /admin/*.html (plain HTML+JS, not this React app).
@@ -33,6 +34,8 @@ function RoleGate() {
   const [role, setRole] = useState<Role>("employer");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [personalChoices, setPersonalChoices] = useState<Role[]>([]);
+  const [backHref, setBackHref] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +49,30 @@ function RoleGate() {
       if (cancelled) return;
 
       const r = profile?.role as string | undefined;
+      const params = new URLSearchParams(window.location.search);
+      const back = params.get("back");
+      if (back) setBackHref(back);
+
+      // Explicit opt-in only, never a default route: a staff account
+      // (admin/moderator/owner) clicked "switch to my dashboard" from
+      // inside their staff panel, which set ?as=personal. Show whichever
+      // worker/employer/freelancer profile this same account also holds.
+      if (params.get("as") === "personal") {
+        const profiles = await fetchMyRoleProfiles();
+        if (cancelled) return;
+        const available = (["worker", "employer", "freelancer"] as const).filter((k) => profiles[k]);
+        if (available.length === 1) {
+          setRole(available[0]);
+          setStatus("ok");
+        } else if (available.length > 1) {
+          setPersonalChoices(available);
+          setStatus("choose-personal");
+        } else {
+          setStatus("no-personal");
+        }
+        return;
+      }
+
       if (r && STAFF_REDIRECT[r]) {
         setStatus("redirecting");
         window.location.href = STAFF_REDIRECT[r];
@@ -86,7 +113,18 @@ function RoleGate() {
   };
 
   if (status === "ok") {
-    return <DashboardByRole role={role} />;
+    return (
+      <>
+        {backHref && (
+          <div className="fixed top-3 right-3 z-[3000]">
+            <a href={backHref} className="glass-pill rounded-full px-4 py-2 text-[11px] font-bold text-white/80 hover:text-white no-underline flex items-center gap-1.5">
+              ← {isFr ? "Retour au panneau staff" : "Back to staff panel"}
+            </a>
+          </div>
+        )}
+        <DashboardByRole role={role} />
+      </>
+    );
   }
 
   return (
@@ -126,6 +164,42 @@ function RoleGate() {
             <p className="text-[12.5px] text-white/55">
               {isFr ? `Vérifiez votre boîte courriel (${email}) et cliquez sur le lien pour continuer.` : `Check your inbox (${email}) and click the link to continue.`}
             </p>
+          </>
+        )}
+
+        {status === "choose-personal" && (
+          <>
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Quel tableau de bord?" : "Which dashboard?"}</h1>
+            <p className="text-[12.5px] text-white/55 mb-5">
+              {isFr ? "Ce compte a plus d'un profil personnel." : "This account has more than one personal profile."}
+            </p>
+            <div className="flex flex-col gap-2">
+              {personalChoices.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => { setRole(r); setStatus("ok"); }}
+                  className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer"
+                >
+                  {r === "worker" ? (isFr ? "Travailleur" : "Worker") : r === "employer" ? (isFr ? "Employeur" : "Employer") : isFr ? "Freelance" : "Freelancer"}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {status === "no-personal" && (
+          <>
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Aucun profil personnel" : "No personal profile"}</h1>
+            <p className="text-[12.5px] text-white/55 mb-5">
+              {isFr
+                ? "Ce compte n'a pas encore de profil travailleur, employeur ou freelance."
+                : "This account doesn't have a worker, employer, or freelancer profile yet."}
+            </p>
+            {backHref && (
+              <a href={backHref} className="w-full py-3 rounded-[11px] bg-white/[0.05] border border-white/10 text-white/70 text-[13px] font-bold no-underline flex items-center justify-center gap-2">
+                ← {isFr ? "Retour au panneau staff" : "Back to staff panel"}
+              </a>
+            )}
           </>
         )}
 

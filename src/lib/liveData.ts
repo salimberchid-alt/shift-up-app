@@ -40,6 +40,23 @@ async function currentUserId(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+/**
+ * Which "personal" (worker/employer/freelancer) profile rows the signed-in
+ * account has, independent of profiles.role. Staff accounts (admin,
+ * moderator, owner) can also hold one of these — e.g. a moderator who also
+ * picks up shifts as a worker — and use this to offer a dashboard switcher.
+ */
+export async function fetchMyRoleProfiles(): Promise<{ worker: boolean; employer: boolean; freelancer: boolean }> {
+  const uid = await currentUserId();
+  if (!uid) return { worker: false, employer: false, freelancer: false };
+  const [w, e, f] = await Promise.all([
+    supabase.from("worker_profiles").select("user_id").eq("user_id", uid).maybeSingle(),
+    supabase.from("employer_profiles").select("user_id").eq("user_id", uid).maybeSingle(),
+    supabase.from("freelancer_profiles").select("user_id").eq("user_id", uid).maybeSingle(),
+  ]);
+  return { worker: !!w.data, employer: !!e.data, freelancer: !!f.data };
+}
+
 // ---------------------------------------------------------------
 // Worker: job feed, swipes, matches, contracts
 // ---------------------------------------------------------------
@@ -535,6 +552,39 @@ export async function respondToQuote(quoteId: string, price: number): Promise<bo
   const { error } = await supabase.from("quotes")
     .update({ price, status: "quoted", responded_at: new Date().toISOString() }).eq("id", quoteId);
   return !error;
+}
+
+export type PaymentPlan = "paygo" | "bundle" | "superlike";
+
+export interface PaymentIntentResult {
+  clientSecret?: string;
+  error?: string;
+}
+
+/** Calls the same create-payment-intent Edge Function the mobile app uses. Returns a real Stripe PaymentIntent client secret. */
+export async function requestPaymentIntent(plan: PaymentPlan, opts: { matchId?: string; candidateId?: string } = {}): Promise<PaymentIntentResult> {
+  const { data, error } = await supabase.functions.invoke("create-payment-intent", {
+    body: { plan, matchId: opts.matchId, candidateId: opts.candidateId },
+  });
+  if (error) return { error: error.message };
+  return (data as PaymentIntentResult) ?? { error: "empty response" };
+}
+
+/** Optimistic local reflection of a payment that just succeeded via Stripe Elements; stripe-webhook is the authoritative source. */
+export async function reflectPaymentLocally(plan: PaymentPlan, opts: { matchId?: string; candidateId?: string } = {}): Promise<void> {
+  const uid = await currentUserId();
+  if (!uid) return;
+  if (plan === "paygo" && opts.matchId) {
+    await supabase.from("matches").update({ status: "active" }).eq("id", opts.matchId).eq("employer_id", uid);
+  } else if (plan === "bundle") {
+    const { data: emp } = await supabase.from("employer_profiles").select("matches_remaining").eq("user_id", uid).maybeSingle();
+    await supabase.from("employer_profiles").update({ matches_remaining: (emp?.matches_remaining ?? 0) + 10, plan: "bundle" }).eq("user_id", uid);
+  } else if (plan === "superlike" && opts.candidateId) {
+    await supabase.from("swipes").upsert(
+      { swiper_id: uid, target_type: "worker", target_id: opts.candidateId, direction: "super", priority: true },
+      { onConflict: "swiper_id,target_type,target_id" },
+    );
+  }
 }
 
 /** Starts (or resumes) real Stripe Express onboarding via the create-connect-account Edge Function. */

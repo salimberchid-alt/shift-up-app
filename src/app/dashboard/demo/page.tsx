@@ -4,9 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { LangProvider, useLang } from "@/lib/lang";
 import { Icon } from "@/components/dashboard/shared";
-import EmployerDashboard from "../EmployerDashboard";
-import WorkerDashboard from "../WorkerDashboard";
-import FreelancerDashboard from "../FreelancerDashboard";
+import EmployerDashboard from "../DemoEmployerDashboard";
+import WorkerDashboard from "../DemoWorkerDashboard";
+import FreelancerDashboard from "../DemoFreelancerDashboard";
 
 type Role = "employer" | "worker" | "freelancer";
 

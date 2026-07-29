@@ -5,15 +5,16 @@ import Link from "next/link";
 import { useLang } from "@/lib/lang";
 import { BrandMark, LangToggle, MatchRing } from "@/components/ui";
 import {
-  Icon, type IconName, Avatar, StatCard, StatusPill, Toast, Modal, MobileTabBar, SideNav,
+  Icon, type IconName, Avatar, StatCard, StatusPill, Toast, MobileTabBar, SideNav,
 } from "@/components/dashboard/shared";
 import {
   fetchCandidateDeck, swipeCandidate, fetchMyJobPostings, fetchEmployerMatches, fetchMyPayments,
   fetchConversations, fetchMessages, sendChatMessage, subscribeToMessages,
   fetchMyEmployerProfile, updateEmployerProfile, fetchMyName, updateMyName,
   type LiveCandidate, type LiveJobPosting, type LiveEmployerMatch, type LivePayment,
-  type LiveConversation, type LiveChatMessage,
+  type LiveConversation, type LiveChatMessage, type PaymentPlan,
 } from "@/lib/liveData";
+import { StripeCheckoutModal } from "@/components/dashboard/StripeCheckout";
 import { supabase } from "@/lib/supabaseClient";
 
 const STATUS_STYLE: Record<string, { color: string; label: { fr: string; en: string } }> = {
@@ -68,30 +69,6 @@ function CandidateCard({ c, index, onConnect, onSuperlike }: { c: LiveCandidate;
   );
 }
 
-function AppUpsellModal({
-  title,
-  body,
-  onClose,
-}: {
-  title: string | null;
-  body: string;
-  onClose: () => void;
-}) {
-  if (!title) return null;
-  return (
-    <Modal onClose={onClose} maxWidth={400} ariaLabel={title}>
-      <h3 className="font-display text-xl font-extrabold text-white mb-3">{title}</h3>
-      <p className="text-[13px] text-white/65 leading-relaxed mb-6">{body}</p>
-      <button
-        onClick={onClose}
-        className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer"
-      >
-        OK
-      </button>
-    </Modal>
-  );
-}
-
 export default function EmployerDashboard() {
   const { lang } = useLang();
   const isFr = lang === "fr";
@@ -104,7 +81,7 @@ export default function EmployerDashboard() {
   const [conversations, setConversations] = useState<LiveConversation[]>([]);
   const [employerProfile, setEmployerProfile] = useState({ company: "", bizType: "", postal: "", matchesRemaining: 0 });
   const [toast, setToast] = useState<string | null>(null);
-  const [upsell, setUpsell] = useState<{ title: string; body: string } | null>(null);
+  const [checkout, setCheckout] = useState<{ plan: PaymentPlan; title: string; cta: string; opts?: { matchId?: string; candidateId?: string } } | null>(null);
   const [thread, setThread] = useState<string | null>(null);
   const [threadMessages, setThreadMessages] = useState<LiveChatMessage[]>([]);
   const [composeText, setComposeText] = useState("");
@@ -164,25 +141,44 @@ export default function EmployerDashboard() {
     const res = await swipeCandidate(c.id, c.jobId, "right");
     setCandidates((cs) => cs.filter((x) => x.id !== c.id));
     if (res.matched) {
-      setUpsell({
-        title: isFr ? "Match créé!" : "Match created!",
-        body: isFr
-          ? "Ce candidat a aussi manifesté son intérêt. Complétez le paiement ($25) dans l'app ShiftUp pour débloquer la messagerie."
-          : "This candidate has also shown interest. Complete the $25 payment in the ShiftUp app to unlock messaging.",
+      const freshMatches = await fetchEmployerMatches();
+      setMatches(freshMatches);
+      const newMatch = freshMatches.find((m) => m.workerId === c.id && m.status === "pending_payment");
+      setCheckout({
+        plan: "paygo",
+        title: isFr ? `Débloquer ${c.initials} — $25` : `Unlock ${c.initials} — $25`,
+        cta: isFr ? "Payer $25" : "Pay $25",
+        opts: { matchId: newMatch?.id },
       });
     } else {
       showToast(isFr ? "Intérêt envoyé!" : "Interest sent!");
+      fetchEmployerMatches().then(setMatches);
     }
-    fetchEmployerMatches().then(setMatches);
   };
 
   const handleSuperlike = (c: LiveCandidate) => {
-    setUpsell({
-      title: isFr ? "Super like" : "Super like",
-      body: isFr
-        ? "Les super likes ($5) sont un achat en argent réel — complétez-le dans l'app ShiftUp, où le paiement Stripe est géré de façon sécurisée."
-        : "Super likes ($5) are a real-money purchase — complete it in the ShiftUp app, where the Stripe payment is handled securely.",
+    setCheckout({
+      plan: "superlike",
+      title: isFr ? `Super like — ${c.initials} — $5` : `Super like — ${c.initials} — $5`,
+      cta: isFr ? "Payer $5" : "Pay $5",
+      opts: { candidateId: c.id },
     });
+  };
+
+  const buyBundle = () => {
+    setCheckout({
+      plan: "bundle",
+      title: isFr ? "Forfait 10 matchs — $99" : "10-match bundle — $99",
+      cta: isFr ? "Payer $99" : "Pay $99",
+    });
+  };
+
+  const checkoutSuccess = () => {
+    setCheckout(null);
+    showToast(isFr ? "Paiement réussi!" : "Payment successful!");
+    fetchEmployerMatches().then(setMatches);
+    fetchMyPayments().then(setPayments);
+    fetchMyEmployerProfile().then((p) => p && setEmployerProfile(p));
   };
 
   const sendMessage = async () => {
@@ -219,7 +215,17 @@ export default function EmployerDashboard() {
   return (
     <div className="bg-[#0a0810] min-h-screen text-white flex flex-col">
       <Toast message={toast} />
-      <AppUpsellModal title={upsell?.title ?? null} body={upsell?.body ?? ""} onClose={() => setUpsell(null)} />
+      {checkout && (
+        <StripeCheckoutModal
+          plan={checkout.plan}
+          title={checkout.title}
+          ctaLabel={checkout.cta}
+          opts={checkout.opts}
+          onClose={() => setCheckout(null)}
+          onSuccess={checkoutSuccess}
+          isFr={isFr}
+        />
+      )}
 
       <header className="glass-pill border-x-0 border-t-0 rounded-none px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-40 gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -262,13 +268,13 @@ export default function EmployerDashboard() {
                 {isFr ? "Recharger des matchs" : "Buy more matches"}
               </div>
               <p className="text-[11px] text-white/50 leading-relaxed mb-2.5">
-                {isFr ? "Achats gérés dans l'app ShiftUp." : "Purchases are handled in the ShiftUp app."}
+                {isFr ? "Forfait de 10 matchs — le meilleur prix." : "10-match bundle — the best per-match rate."}
               </p>
               <button
-                onClick={() => setTab("billing")}
-                className="w-full py-2 rounded-[9px] bg-white/[0.05] border border-white/10 text-white/70 text-[11px] font-bold cursor-pointer hover:text-white"
+                onClick={buyBundle}
+                className="w-full py-2 rounded-[9px] grad-violet border-none text-white text-[11px] font-bold cursor-pointer"
               >
-                {isFr ? "Voir la facturation" : "View billing"}
+                {isFr ? "Acheter — $99" : "Buy — $99"}
               </button>
             </div>
           }
@@ -475,10 +481,13 @@ export default function EmployerDashboard() {
                       <div className="font-display text-5xl font-extrabold text-[#F5B93F] leading-none">${spent.toFixed(2)}</div>
                       <div className="text-xs text-white/50 mt-1.5">{payments.length} {isFr ? "transactions" : "transactions"}</div>
                     </div>
-                    <div className="flex flex-col justify-center ml-auto">
-                      <p className="text-[12px] text-white/50 leading-relaxed max-w-[220px]">
-                        {isFr ? "Achetez des matchs ou un forfait dans l'app ShiftUp." : "Buy matches or a bundle in the ShiftUp app."}
-                      </p>
+                    <div className="flex flex-col justify-center gap-2 ml-auto">
+                      <button
+                        onClick={buyBundle}
+                        className="px-4 py-2.5 rounded-[10px] grad-violet border-none text-white text-xs font-bold cursor-pointer"
+                      >
+                        {isFr ? "Forfait 10 matchs — $99" : "10-match bundle — $99"}
+                      </button>
                     </div>
                   </div>
                   <h3 className="font-display text-base font-extrabold text-white mb-4">
