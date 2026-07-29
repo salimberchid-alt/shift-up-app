@@ -87,9 +87,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const $ = (s) => document.querySelector(s);
 
+// Owner (CEO) only. Admin and moderator accounts now sign in exclusively
+// through the public /dashboard magic-link flow, which redirects them to
+// ./index.html or ./moderator.html itself — this page never routes them.
 function destinationFor(role) {
-  if (role === 'admin' || role === 'owner') return './index.html';
-  if (role === 'moderator') return './moderator.html';
+  if (role === 'owner') return './index.html';
   return null;
 }
 
@@ -124,7 +126,7 @@ async function doLogin(e) {
   const dest = await routeByRole(data.user.id);
   if (!dest) {
     await supabase.auth.signOut();
-    infoEl.innerHTML = `Ce compte n'a pas les permissions requises (admin ou modérateur).<br/>Dans le SQL Editor de Supabase :<br/><code>update profiles set role='admin' where id='${data.user.id}';</code>`;
+    infoEl.innerHTML = `Ce compte n'a pas les permissions requises.<br/>Les comptes admin et modérateur se connectent via <a href="/dashboard" style="color:inherit;">shift-up.app/dashboard</a>.`;
     infoEl.style.display = 'block';
     return;
   }

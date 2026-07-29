@@ -116,12 +116,18 @@ export function WaitlistSection() {
               )}
 
               <div className="text-[11px] text-white/50 mb-5">{w.tag}</div>
-              <div className="border-t border-white/[0.08] pt-5">
+              <div className="border-t border-white/[0.08] pt-5 flex flex-col items-center gap-3">
                 <a
                   href="/dashboard"
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[--color-teal2]/10 border-[1.5px] border-[--color-teal2]/35 text-[--color-teal2] text-[13px] font-bold no-underline transition-colors hover:bg-[--color-teal2]/20"
                 >
                   🏢 {w.dashboard}
+                </a>
+                <a
+                  href="/dashboard/demo"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[--color-amber2]/10 border-[1.5px] border-[--color-amber2]/30 text-[--color-amber2] text-[12px] font-bold no-underline transition-colors hover:bg-[--color-amber2]/20"
+                >
+                  ✨ {w.demoLink}
                 </a>
               </div>
             </>

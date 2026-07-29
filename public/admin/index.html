@@ -629,7 +629,8 @@ function roleActionButtons(p) {
   if (p.id === currentUserId) return '<span style="color:var(--muted-2);font-size:11px;">— vous —</span>';
   if (currentUserRole !== 'owner') return '<span style="color:var(--muted-2);font-size:11px;">Réservé au CEO</span>';
   return `<select class="role-select" data-id="${p.id}">
-    <option value="" disabled ${!['admin', 'moderator'].includes(p.role) ? 'selected' : ''}>— Rôle —</option>
+    <option value="" disabled ${!['admin', 'moderator', 'employer'].includes(p.role) ? 'selected' : ''}>— Rôle —</option>
+    <option value="employer" ${p.role === 'employer' ? 'selected' : ''}>Entreprise</option>
     <option value="moderator" ${p.role === 'moderator' ? 'selected' : ''}>Modérateur</option>
     <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
   </select>`;
@@ -653,7 +654,7 @@ function renderUsers({ profiles }) {
     sel.addEventListener('change', async () => {
       const id = sel.dataset.id;
       const role = sel.value;
-      const label = { moderator: 'modérateur', admin: 'admin' }[role];
+      const label = { moderator: 'modérateur', admin: 'admin', employer: 'entreprise' }[role];
       if (!confirm(`Changer le rôle de ce compte en ${label} ?`)) return;
       sel.disabled = true;
       const { error } = await supabase.rpc('admin_set_profile_role', { p_user_id: id, p_role: role });

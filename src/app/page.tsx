@@ -229,7 +229,7 @@ function ShowcaseSection() {
           <div className="sticky top-28 flex flex-col items-center gap-4">
             <div className="text-xs font-bold text-white/45 tracking-widest uppercase">📱 {t.demo.label}</div>
             <PhoneMockup img={img} alt={activeFeature?.alt ?? t.demo.label} badge={badge} />
-            <div className="text-[11px] text-white/45">{t.demo.sub}</div>
+            <div className="text-[11px] text-white/45 mt-6">{t.demo.sub}</div>
             <div className="glass-pill flex items-center gap-2 px-3 py-2.5 rounded-full mt-1">
               {t.features.map((f) => (
                 <span
@@ -284,9 +284,6 @@ function Footer() {
           </a>
           <a href="/terms" className="text-xs text-white/40 no-underline font-semibold hover:text-white/70 transition-colors">
             {t.footer.terms}
-          </a>
-          <a href="/admin/login.html" className="text-xs text-white/20 no-underline font-semibold hover:text-white/50 transition-colors">
-            Admin
           </a>
         </div>
       </div>
