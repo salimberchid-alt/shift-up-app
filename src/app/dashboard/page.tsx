@@ -218,7 +218,10 @@ function RoleGate() {
     return (
       <>
         {backHref && (
-          <div className="fixed top-3 right-3 z-[3000]">
+          // Below each dashboard's own sticky header (~60px), not on top of
+          // it — it was overlapping the header's own right-side content
+          // (e.g. WorkerDashboard's "active matches" pill).
+          <div className="fixed top-[68px] right-3 z-[3000]">
             <a href={backHref} className="glass-pill rounded-full px-4 py-2 text-[11px] font-bold text-white/80 hover:text-white no-underline flex items-center gap-1.5">
               ← {isFr ? "Retour au panneau staff" : "Back to staff panel"}
             </a>
