@@ -221,6 +221,7 @@
       <button class="tab-btn" data-view="listings">Annonces</button>
       <button class="tab-btn" data-view="moderation">Modération</button>
       <button class="tab-btn" data-view="bookings">Réservations</button>
+      <button class="tab-btn" data-view="messages">Messages</button>
     </div>
 
     <!-- OVERVIEW -->
@@ -325,6 +326,28 @@
       <div class="panel">
         <h3>Toutes les réservations</h3>
         <div id="bookings-table"></div>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="view" id="view-messages">
+      <div class="panel" id="dm-new-panel" style="display:none;">
+        <h3>Nouvelle conversation</h3>
+        <p style="margin:0 0 14px;color:var(--muted-2);font-size:12px;">Seul le CEO peut démarrer une conversation avec un membre du personnel (admin/modérateur). Une fois ouverte, la conversation est à double sens.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <select id="dm-staff-select" style="background:oklch(0.22 0.02 260);border:1.5px solid var(--border-strong);border-radius:9px;padding:9px 12px;color:var(--text);font-size:13px;font-family:var(--sans);min-width:240px;"></select>
+          <button class="act-btn" id="dm-start-btn">Démarrer la conversation</button>
+        </div>
+      </div>
+      <div class="two-col" style="grid-template-columns:1fr 1.5fr;">
+        <div class="panel">
+          <h3>Conversations</h3>
+          <div id="dm-thread-list"></div>
+        </div>
+        <div class="panel">
+          <h3 id="dm-thread-title">Conversation</h3>
+          <div id="dm-thread-body"><div class="empty-note">Sélectionnez une conversation à gauche.</div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -441,7 +464,10 @@ $('#logout-btn').addEventListener('click', async () => {
   $('#login-screen').style.display = 'flex';
 });
 
-$('#refresh-btn').addEventListener('click', loadDashboard);
+$('#refresh-btn').addEventListener('click', () => {
+  loadDashboard();
+  if ($('#view-messages').classList.contains('active')) renderMessagesTab();
+});
 
 supabase.auth.getSession().then(async ({ data }) => {
   if (!data.session) return;
@@ -467,6 +493,7 @@ $$('.tab-btn').forEach(btn => {
     $$('.view').forEach(v => v.classList.remove('active'));
     btn.classList.add('active');
     $('#view-' + btn.dataset.view).classList.add('active');
+    if (btn.dataset.view === 'messages') renderMessagesTab();
   });
 });
 
@@ -937,6 +964,149 @@ function renderBookings({ bookings }) {
       </tr>`).join('')
   }</tbody></table>${bookings.length > 150 ? `<div class="empty-note">Affichage des 150 plus récentes (${bookings.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune réservation pour l'instant.</div>`;
 }
+
+// ---------------- Messages (CEO -> staff DMs) ----------------
+// Only the owner can start a new thread (moderator_dm_threads insert RLS
+// enforces this server-side too — see 024_staff_dm.sql); once open, both
+// sides can reply. Lazy-loaded when the tab is opened / refreshed, no
+// realtime subscription — same "manual refresh" pattern as the rest of
+// this dashboard.
+let dmThreads = [];
+let dmMessagesByThread = {};
+let dmActiveThreadId = null;
+
+const fmtDateTime = d => fmtDate(d) + ' ' + new Date(d).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+
+async function renderMessagesTab() {
+  $('#dm-thread-list').innerHTML = '<div class="empty-note">Chargement…</div>';
+
+  const isOwner = currentUserRole === 'owner';
+  $('#dm-new-panel').style.display = isOwner ? 'block' : 'none';
+
+  const requests = [
+    supabase.from('staff_dm_threads')
+      .select('id, staff_id, created_at, staff:profiles!staff_dm_threads_staff_id_fkey(name, role)')
+      .eq('ceo_id', currentUserId)
+      .order('created_at', { ascending: false }),
+  ];
+  if (isOwner) {
+    requests.push(supabase.from('profiles').select('id, name, role').in('role', ['admin', 'moderator']).neq('id', currentUserId));
+  }
+  const [threadsRes, staffRes] = await Promise.all(requests);
+
+  dmThreads = threadsRes.data ?? [];
+  if (isOwner) renderDmStaffPicker(staffRes?.data ?? []);
+
+  dmMessagesByThread = {};
+  if (dmThreads.length) {
+    const ids = dmThreads.map(t => t.id);
+    const { data: msgs } = await supabase.from('staff_dm_messages')
+      .select('id, thread_id, sender_id, body, created_at')
+      .in('thread_id', ids)
+      .order('created_at', { ascending: true });
+    (msgs ?? []).forEach(m => { (dmMessagesByThread[m.thread_id] ??= []).push(m); });
+  }
+
+  renderDmThreadList();
+  renderDmThreadBody();
+}
+
+function renderDmStaffPicker(staff) {
+  $('#dm-staff-select').innerHTML = staff.length
+    ? staff.map(s => `<option value="${s.id}">${s.name || '—'} (${s.role === 'admin' ? 'Admin' : 'Modérateur'})</option>`).join('')
+    : '<option value="">Aucun compte admin/modérateur</option>';
+}
+
+function renderDmThreadList() {
+  $('#dm-thread-list').innerHTML = dmThreads.length ? dmThreads.map(t => {
+    const msgs = dmMessagesByThread[t.id] || [];
+    const last = msgs[msgs.length - 1];
+    return `
+    <div class="panel-row" data-open-thread="${t.id}" style="cursor:pointer;${dmActiveThreadId === t.id ? 'background:oklch(1 0 0 / 0.05);border-radius:8px;' : ''}">
+      <div style="min-width:0;">
+        <div style="font-weight:700;">${t.staff?.name || '—'} ${badgeSpan(t.staff?.role || 'admin')}</div>
+        <div style="color:var(--muted-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;">${last ? last.body : 'Aucun message pour l’instant'}</div>
+      </div>
+      <div style="color:var(--muted-2);font-size:11px;font-family:var(--mono);white-space:nowrap;">${fmtDate(last ? last.created_at : t.created_at)}</div>
+    </div>`;
+  }).join('') : '<div class="empty-note">Aucune conversation pour l’instant.</div>';
+
+  $('#dm-thread-list').querySelectorAll('[data-open-thread]').forEach(row => {
+    row.addEventListener('click', () => {
+      dmActiveThreadId = row.dataset.openThread;
+      renderDmThreadList();
+      renderDmThreadBody();
+    });
+  });
+}
+
+function renderDmThreadBody() {
+  const thread = dmThreads.find(t => t.id === dmActiveThreadId);
+  if (!thread) {
+    $('#dm-thread-title').textContent = 'Conversation';
+    $('#dm-thread-body').innerHTML = '<div class="empty-note">Sélectionnez une conversation à gauche.</div>';
+    return;
+  }
+  $('#dm-thread-title').textContent = 'Conversation avec ' + (thread.staff?.name || '—');
+  const msgs = dmMessagesByThread[thread.id] || [];
+  $('#dm-thread-body').innerHTML = `
+    <div id="dm-messages" style="max-height:320px;overflow-y:auto;margin-bottom:14px;">
+      ${msgs.length ? msgs.map(m => `
+        <div style="margin-bottom:10px;text-align:${m.sender_id === currentUserId ? 'right' : 'left'};">
+          <div style="display:inline-block;max-width:75%;text-align:left;background:${m.sender_id === currentUserId ? 'var(--indigo-soft)' : 'oklch(0.24 0.02 260)'};color:var(--text);padding:8px 12px;border-radius:10px;font-size:13px;">${m.body}</div>
+          <div style="font-size:10px;color:var(--muted-2);font-family:var(--mono);margin-top:2px;">${fmtDateTime(m.created_at)}</div>
+        </div>`).join('') : '<div class="empty-note">Aucun message. Écrivez ci-dessous.</div>'}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="dm-compose" placeholder="Écrire un message…" style="flex:1;background:oklch(0.22 0.02 260);border:1.5px solid var(--border-strong);border-radius:9px;padding:9px 12px;color:var(--text);font-size:13px;font-family:var(--sans);" />
+      <button class="act-btn" id="dm-send-btn">Envoyer</button>
+    </div>`;
+
+  const send = async () => {
+    const input = $('#dm-compose');
+    const body = input.value.trim();
+    if (!body) return;
+    $('#dm-send-btn').disabled = true;
+    const { error } = await supabase.from('staff_dm_messages').insert({ thread_id: thread.id, sender_id: currentUserId, body });
+    $('#dm-send-btn').disabled = false;
+    if (error) { showToast('Erreur: ' + error.message); return; }
+    input.value = '';
+    const { data: msgs } = await supabase.from('staff_dm_messages')
+      .select('id, thread_id, sender_id, body, created_at')
+      .eq('thread_id', thread.id)
+      .order('created_at', { ascending: true });
+    dmMessagesByThread[thread.id] = msgs ?? [];
+    renderDmThreadBody();
+    renderDmThreadList();
+  };
+  $('#dm-send-btn').addEventListener('click', send);
+  $('#dm-compose').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  const msgsEl = $('#dm-messages');
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+$('#dm-start-btn')?.addEventListener('click', async () => {
+  const staffId = $('#dm-staff-select').value;
+  if (!staffId) return;
+
+  const existing = dmThreads.find(t => t.staff_id === staffId);
+  if (existing) {
+    dmActiveThreadId = existing.id;
+    renderDmThreadList();
+    renderDmThreadBody();
+    return;
+  }
+
+  $('#dm-start-btn').disabled = true;
+  const { data, error } = await supabase.from('staff_dm_threads').insert({ ceo_id: currentUserId, staff_id: staffId }).select('id').single();
+  $('#dm-start-btn').disabled = false;
+  if (error) { showToast('Erreur: ' + error.message); return; }
+  showToast('Conversation démarrée.');
+  await renderMessagesTab();
+  dmActiveThreadId = data.id;
+  renderDmThreadList();
+  renderDmThreadBody();
+});
 </script>
 </body>
 </html>

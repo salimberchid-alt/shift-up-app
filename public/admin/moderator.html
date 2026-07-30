@@ -105,6 +105,8 @@
   .panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin: 0 0 14px; }
   .panel-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid oklch(1 0 0 / 0.05); }
   .panel-row:last-child { border-bottom: none; }
+  .dm-cols { display: grid; grid-template-columns: 1fr 1.5fr; gap: 14px; }
+  @media (max-width: 900px) { .dm-cols { grid-template-columns: 1fr; } }
 
   .filter-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
   .filter-row input[type=text] { flex: 1; min-width: 180px; background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 9px 12px; color: var(--text); font-size: 12.5px; outline: none; font-family: var(--sans); }
@@ -131,6 +133,17 @@
   .act-btn.ok { color: var(--green-text); }
   .act-btn.ok:hover { border-color: var(--green); }
   .act-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .thread-row td { padding: 0 4px 16px; }
+  .thread-panel { background: oklch(0.17 0.018 260); border: 1px solid var(--border-strong); border-radius: 10px; padding: 14px; }
+  .thread-messages { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; margin-bottom: 12px; }
+  .thread-msg { max-width: 70%; align-self: flex-start; background: oklch(0.24 0.02 260); border-radius: 10px; border-bottom-left-radius: 3px; padding: 8px 12px; }
+  .thread-msg.mine { align-self: flex-end; background: var(--teal-soft); border-bottom-left-radius: 10px; border-bottom-right-radius: 3px; }
+  .thread-msg-meta { font-size: 10px; color: var(--muted); margin-bottom: 3px; font-weight: 600; }
+  .thread-msg-body { font-size: 13px; color: var(--text); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .thread-reply-row { display: flex; gap: 8px; align-items: flex-end; }
+  .thread-reply-row textarea { flex: 1; resize: vertical; min-height: 40px; background: oklch(0.22 0.02 260); border: 1.5px solid var(--border-strong); border-radius: 9px; padding: 9px 12px; color: var(--text); font-size: 13px; font-family: var(--sans); outline: none; }
+  .thread-reply-row textarea:focus { border-color: var(--teal); }
 
   #loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 20; flex-direction: column; gap: 10px; }
   .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 999px; animation: spin 0.8s linear infinite; }
@@ -195,6 +208,7 @@
       <button class="tab-btn" data-view="reviews">Avis</button>
       <button class="tab-btn" data-view="bookings">Réservations</button>
       <button class="tab-btn" data-view="support">Demandes de support</button>
+      <button class="tab-btn" data-view="messages">Messages</button>
     </div>
 
     <!-- OVERVIEW -->
@@ -277,6 +291,23 @@
         <div id="support-table"></div>
       </div>
     </div>
+
+    <!-- MESSAGES (CEO DMs — read + reply only, cannot start a new thread) -->
+    <div class="view" id="view-messages">
+      <div class="panel" style="margin-bottom:14px;">
+        <p style="margin:0;color:var(--muted-2);font-size:12px;">Messages directs du CEO. Seul le CEO peut démarrer une conversation ici — vous pouvez uniquement lire et répondre.</p>
+      </div>
+      <div class="dm-cols">
+        <div class="panel">
+          <h3>Conversations</h3>
+          <div id="dm-thread-list"></div>
+        </div>
+        <div class="panel">
+          <h3 id="dm-thread-title">Conversation</h3>
+          <div id="dm-thread-body"><div class="empty-note">Sélectionnez une conversation à gauche.</div></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -298,9 +329,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 const fmtDate = d => new Date(d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+const escapeHtml = str => String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let state = { profiles: [], jobs: [], listings: [], freelancers: [], reviews: [], bookings: [], support: [] };
 let currentUserRole = null;
+let currentUserId = null;
+let expandedSupportId = null;
+let supportThreadCache = {};
 
 const SUPPORT_REASON_LABELS = { account_issue: 'Problème de compte', report: 'Signaler un utilisateur/annonce', other: 'Autre' };
 
@@ -355,6 +390,7 @@ async function doLogin() {
   }
 
   currentUserRole = profile.role;
+  currentUserId = uid;
   $('#login-screen').style.display = 'none';
   $('#app').style.display = 'block';
   loadDashboard();
@@ -367,13 +403,17 @@ $('#logout-btn').addEventListener('click', async () => {
   $('#login-screen').style.display = 'flex';
 });
 
-$('#refresh-btn').addEventListener('click', loadDashboard);
+$('#refresh-btn').addEventListener('click', () => {
+  loadDashboard();
+  if ($('#view-messages').classList.contains('active')) renderMessagesTab();
+});
 
 supabase.auth.getSession().then(async ({ data }) => {
   if (!data.session) return;
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).maybeSingle();
   if (profile?.role === 'moderator' || profile?.role === 'admin' || profile?.role === 'owner') {
     currentUserRole = profile.role;
+    currentUserId = data.session.user.id;
     $('#login-screen').style.display = 'none';
     $('#app').style.display = 'block';
     loadDashboard();
@@ -404,6 +444,7 @@ $$('.tab-btn').forEach(btn => {
     $$('.view').forEach(v => v.classList.remove('active'));
     btn.classList.add('active');
     $('#view-' + btn.dataset.view).classList.add('active');
+    if (btn.dataset.view === 'messages') renderMessagesTab();
   });
 });
 
@@ -697,7 +738,9 @@ function renderBookings() {
 function renderSupport() {
   const { support } = state;
   $('#support-table').innerHTML = support.length ? `<table><thead><tr><th>Utilisateur</th><th>Raison</th><th>Message</th><th>Statut</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>${
-    support.slice(0, 150).map(s => `
+    support.slice(0, 150).map(s => {
+      const isOpen = expandedSupportId === s.id;
+      return `
       <tr>
         <td style="font-weight:600;">${s.requester?.name || '—'}</td>
         <td style="color:var(--muted-3);">${SUPPORT_REASON_LABELS[s.reason] || s.reason}</td>
@@ -707,20 +750,194 @@ function renderSupport() {
         <td>
           ${s.status === 'open' ? `<button class="act-btn" data-act="claim" data-id="${s.id}">Prendre en charge</button>` : ''}
           ${s.status !== 'resolved' ? `<button class="act-btn ok" data-act="resolve" data-id="${s.id}">Marquer résolu</button>` : ''}
+          <button class="act-btn" data-act="toggle-thread" data-id="${s.id}">${isOpen ? 'Fermer' : 'Répondre'}</button>
         </td>
-      </tr>`).join('')
+      </tr>${isOpen ? `<tr class="thread-row"><td colspan="6">${renderSupportThread(s)}</td></tr>` : ''}`;
+    }).join('')
   }</tbody></table>${support.length > 150 ? `<div class="empty-note">Affichage des 150 dernières (${support.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune demande de support.</div>`;
 
   $('#support-table').querySelectorAll('[data-act]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const fn = btn.dataset.act === 'claim' ? 'moderator_claim_support_request' : 'moderator_resolve_support_request';
+      const act = btn.dataset.act;
+      const id = btn.dataset.id;
+
+      if (act === 'toggle-thread') {
+        if (expandedSupportId === id) {
+          expandedSupportId = null;
+          renderSupport();
+        } else {
+          expandedSupportId = id;
+          renderSupport();
+          await loadSupportThread(id);
+        }
+        return;
+      }
+
+      const fn = act === 'claim' ? 'moderator_claim_support_request' : 'moderator_resolve_support_request';
       btn.disabled = true;
-      const { error } = await supabase.rpc(fn, { p_request_id: btn.dataset.id });
+      const { error } = await supabase.rpc(fn, { p_request_id: id });
       if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
-      showToast(btn.dataset.act === 'claim' ? 'Demande prise en charge.' : 'Demande marquée résolue.');
+      showToast(act === 'claim' ? 'Demande prise en charge.' : 'Demande marquée résolue.');
       await loadDashboard();
     });
   });
+
+  wireSupportThreadReply();
+}
+
+// Expandable reply panel per ticket: shows the support_messages thread and
+// lets the signed-in moderator post a follow-up (inserted as sender_id =
+// currentUserId, read back by the requester via 025_support_messages.sql RLS).
+function renderSupportThread(s) {
+  const msgs = supportThreadCache[s.id];
+  const body = !msgs
+    ? `<div class="empty-note">Chargement…</div>`
+    : msgs.length
+      ? msgs.map(m => `
+        <div class="thread-msg${m.sender_id === currentUserId ? ' mine' : ''}">
+          <div class="thread-msg-meta">${escapeHtml(m.sender?.name || 'Utilisateur')} · ${fmtDate(m.created_at)}</div>
+          <div class="thread-msg-body">${escapeHtml(m.body)}</div>
+        </div>`).join('')
+      : `<div class="empty-note">Aucun message pour l'instant.</div>`;
+
+  return `
+    <div class="thread-panel">
+      <div class="thread-messages">${body}</div>
+      <div class="thread-reply-row">
+        <textarea data-thread-input="${s.id}" placeholder="Répondre à ${escapeHtml(s.requester?.name || 'cet utilisateur')}…" rows="2"></textarea>
+        <button class="act-btn ok" data-send-thread="${s.id}">Envoyer</button>
+      </div>
+    </div>`;
+}
+
+async function loadSupportThread(id) {
+  const { data, error } = await supabase.from('support_messages')
+    .select('id, sender_id, body, created_at, sender:profiles!support_messages_sender_id_fkey(name)')
+    .eq('support_request_id', id)
+    .order('created_at', { ascending: true });
+  if (error) { showToast('Erreur: ' + error.message); return; }
+  supportThreadCache[id] = data ?? [];
+  if (expandedSupportId === id) renderSupport();
+}
+
+function wireSupportThreadReply() {
+  $('#support-table').querySelectorAll('[data-send-thread]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.sendThread;
+      const ta = $('#support-table').querySelector(`[data-thread-input="${id}"]`);
+      const body = ta.value.trim();
+      if (!body) return;
+      btn.disabled = true;
+      const { error } = await supabase.from('support_messages').insert({ support_request_id: id, sender_id: currentUserId, body });
+      btn.disabled = false;
+      if (error) { showToast('Erreur: ' + error.message); return; }
+      ta.value = '';
+      showToast('Réponse envoyée.');
+      await loadSupportThread(id);
+    });
+  });
+}
+
+// ---------------- Messages (CEO DMs — read + reply only) ----------------
+// The CEO is the only one who can create a staff_dm_threads row (enforced
+// server-side by RLS in 024_staff_dm.sql) — this tab only ever shows
+// threads where the signed-in admin/moderator is the staff_id, and there
+// is deliberately no "start new thread" control here.
+let dmThreads = [];
+let dmMessagesByThread = {};
+let dmActiveThreadId = null;
+
+const fmtDateTime = d => fmtDate(d) + ' ' + new Date(d).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+
+async function renderMessagesTab() {
+  $('#dm-thread-list').innerHTML = '<div class="empty-note">Chargement…</div>';
+
+  const { data: threads } = await supabase.from('staff_dm_threads')
+    .select('id, ceo_id, created_at, ceo:profiles!staff_dm_threads_ceo_id_fkey(name)')
+    .eq('staff_id', currentUserId)
+    .order('created_at', { ascending: false });
+  dmThreads = threads ?? [];
+
+  dmMessagesByThread = {};
+  if (dmThreads.length) {
+    const ids = dmThreads.map(t => t.id);
+    const { data: msgs } = await supabase.from('staff_dm_messages')
+      .select('id, thread_id, sender_id, body, created_at')
+      .in('thread_id', ids)
+      .order('created_at', { ascending: true });
+    (msgs ?? []).forEach(m => { (dmMessagesByThread[m.thread_id] ??= []).push(m); });
+  }
+
+  renderDmThreadList();
+  renderDmThreadBody();
+}
+
+function renderDmThreadList() {
+  $('#dm-thread-list').innerHTML = dmThreads.length ? dmThreads.map(t => {
+    const msgs = dmMessagesByThread[t.id] || [];
+    const last = msgs[msgs.length - 1];
+    return `
+    <div class="panel-row" data-open-thread="${t.id}" style="cursor:pointer;${dmActiveThreadId === t.id ? 'background:oklch(1 0 0 / 0.05);border-radius:8px;' : ''}">
+      <div style="min-width:0;">
+        <div style="font-weight:700;">${t.ceo?.name || 'CEO'}</div>
+        <div style="color:var(--muted-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;">${last ? last.body : 'Aucun message pour l’instant'}</div>
+      </div>
+      <div style="color:var(--muted-2);font-size:11px;font-family:var(--mono);white-space:nowrap;">${fmtDate(last ? last.created_at : t.created_at)}</div>
+    </div>`;
+  }).join('') : '<div class="empty-note">Aucune conversation. Le CEO n’a pas encore démarré de discussion avec vous.</div>';
+
+  $('#dm-thread-list').querySelectorAll('[data-open-thread]').forEach(row => {
+    row.addEventListener('click', () => {
+      dmActiveThreadId = row.dataset.openThread;
+      renderDmThreadList();
+      renderDmThreadBody();
+    });
+  });
+}
+
+function renderDmThreadBody() {
+  const thread = dmThreads.find(t => t.id === dmActiveThreadId);
+  if (!thread) {
+    $('#dm-thread-title').textContent = 'Conversation';
+    $('#dm-thread-body').innerHTML = '<div class="empty-note">Sélectionnez une conversation à gauche.</div>';
+    return;
+  }
+  $('#dm-thread-title').textContent = 'Conversation avec ' + (thread.ceo?.name || 'CEO');
+  const msgs = dmMessagesByThread[thread.id] || [];
+  $('#dm-thread-body').innerHTML = `
+    <div id="dm-messages" style="max-height:320px;overflow-y:auto;margin-bottom:14px;">
+      ${msgs.length ? msgs.map(m => `
+        <div style="margin-bottom:10px;text-align:${m.sender_id === currentUserId ? 'right' : 'left'};">
+          <div style="display:inline-block;max-width:75%;text-align:left;background:${m.sender_id === currentUserId ? 'var(--teal-soft)' : 'oklch(0.24 0.02 260)'};color:var(--text);padding:8px 12px;border-radius:10px;font-size:13px;">${m.body}</div>
+          <div style="font-size:10px;color:var(--muted-2);font-family:var(--mono);margin-top:2px;">${fmtDateTime(m.created_at)}</div>
+        </div>`).join('') : '<div class="empty-note">Aucun message.</div>'}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="dm-compose" placeholder="Répondre…" style="flex:1;background:oklch(0.22 0.02 260);border:1.5px solid var(--border-strong);border-radius:9px;padding:9px 12px;color:var(--text);font-size:13px;font-family:var(--sans);" />
+      <button class="act-btn" id="dm-send-btn">Envoyer</button>
+    </div>`;
+
+  const send = async () => {
+    const input = $('#dm-compose');
+    const body = input.value.trim();
+    if (!body) return;
+    $('#dm-send-btn').disabled = true;
+    const { error } = await supabase.from('staff_dm_messages').insert({ thread_id: thread.id, sender_id: currentUserId, body });
+    $('#dm-send-btn').disabled = false;
+    if (error) { showToast('Erreur: ' + error.message); return; }
+    input.value = '';
+    const { data: msgs } = await supabase.from('staff_dm_messages')
+      .select('id, thread_id, sender_id, body, created_at')
+      .eq('thread_id', thread.id)
+      .order('created_at', { ascending: true });
+    dmMessagesByThread[thread.id] = msgs ?? [];
+    renderDmThreadBody();
+    renderDmThreadList();
+  };
+  $('#dm-send-btn').addEventListener('click', send);
+  $('#dm-compose').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  const msgsEl = $('#dm-messages');
+  msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 </script>
 </body>
