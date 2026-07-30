@@ -119,9 +119,10 @@
   .badge.employer { background: var(--indigo-soft); color: var(--indigo-text); }
   .badge.freelancer { background: var(--rose-soft); color: var(--rose-text); }
   .badge.admin, .badge.moderator { background: var(--amber-soft); color: var(--amber-text); }
-  .badge.active, .badge.live, .badge.verified, .badge.completed, .badge.paid_out, .badge.confirmed { background: var(--green-soft); color: var(--green-text); }
-  .badge.pending, .badge.requested, .badge.draft, .badge.in_progress, .badge.unsubmitted { background: var(--amber-soft); color: var(--amber-text); }
+  .badge.active, .badge.live, .badge.verified, .badge.completed, .badge.paid_out, .badge.confirmed, .badge.resolved { background: var(--green-soft); color: var(--green-text); }
+  .badge.pending, .badge.requested, .badge.draft, .badge.in_progress, .badge.unsubmitted, .badge.open { background: var(--amber-soft); color: var(--amber-text); }
   .badge.suspended, .badge.banned, .badge.disputed, .badge.rejected, .badge.paused, .badge.cancelled { background: var(--rose-soft); color: var(--rose-text); }
+  .badge.claimed { background: var(--indigo-soft); color: var(--indigo-text); }
 
   .act-btn { border: 1px solid var(--border-strong); background: oklch(0.22 0.02 260); color: var(--text); border-radius: 7px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; margin-right: 6px; margin-bottom: 4px; font-family: var(--sans); }
   .act-btn:hover { border-color: var(--teal); }
@@ -193,6 +194,7 @@
       <button class="tab-btn" data-view="verifications">Vérifications ID</button>
       <button class="tab-btn" data-view="reviews">Avis</button>
       <button class="tab-btn" data-view="bookings">Réservations</button>
+      <button class="tab-btn" data-view="support">Demandes de support</button>
     </div>
 
     <!-- OVERVIEW -->
@@ -267,6 +269,14 @@
         <div id="bookings-table"></div>
       </div>
     </div>
+
+    <!-- SUPPORT REQUESTS -->
+    <div class="view" id="view-support">
+      <div class="panel">
+        <h3>Demandes de support <span style="font-weight:400;color:var(--muted);">— "Contacter un modérateur" depuis l'app</span></h3>
+        <div id="support-table"></div>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -289,8 +299,10 @@ const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 const fmtDate = d => new Date(d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'short', day: 'numeric' });
 
-let state = { profiles: [], jobs: [], listings: [], freelancers: [], reviews: [], bookings: [] };
+let state = { profiles: [], jobs: [], listings: [], freelancers: [], reviews: [], bookings: [], support: [] };
 let currentUserRole = null;
+
+const SUPPORT_REASON_LABELS = { account_issue: 'Problème de compte', report: 'Signaler un utilisateur/annonce', other: 'Autre' };
 
 function showToast(msg) {
   const t = $('#toast');
@@ -406,13 +418,16 @@ $('#user-status-filter').addEventListener('change', () => renderUsers());
 async function loadDashboard() {
   $('#loading-overlay').style.display = 'flex';
   try {
-    const [profilesRes, jobsRes, listingsRes, freelancersRes, reviewsRes, bookingsRes] = await Promise.all([
+    const [profilesRes, jobsRes, listingsRes, freelancersRes, reviewsRes, bookingsRes, supportRes] = await Promise.all([
       supabase.from('profiles').select('id, role, name, lang, status, created_at').order('created_at', { ascending: false }),
       supabase.from('jobs').select('id, title, company, status, employer_id, flag_status, created_at').order('created_at', { ascending: false }),
       supabase.from('listings').select('id, category, listing_type, title, status, freelancer_id, flag_status, created_at').order('created_at', { ascending: false }),
       supabase.from('freelancer_profiles').select('user_id, display_name, categories, status, id_verification_status, rating_avg, rating_count, updated_at'),
       supabase.from('reviews').select('id, booking_id, reviewer_id, reviewee_id, rating, comment, created_at').order('created_at', { ascending: false }),
       supabase.rpc('bookings_moderation').order('created_at', { ascending: false }),
+      supabase.from('support_requests')
+        .select('id, reason, message, status, created_at, claimed_at, resolved_at, requester:profiles!support_requests_user_id_fkey(name), claimer:profiles!support_requests_claimed_by_fkey(name)')
+        .order('created_at', { ascending: false }),
     ]);
 
     state.profiles = profilesRes.data ?? [];
@@ -421,6 +436,7 @@ async function loadDashboard() {
     state.freelancers = freelancersRes.data ?? [];
     state.reviews = reviewsRes.data ?? [];
     state.bookings = bookingsRes.data ?? [];
+    state.support = supportRes.data ?? [];
 
     renderOverview();
     renderUsers();
@@ -429,6 +445,7 @@ async function loadDashboard() {
     renderVerifications();
     renderReviews();
     renderBookings();
+    renderSupport();
 
     $('#last-updated').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
 
@@ -674,6 +691,36 @@ function renderBookings() {
         <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(b.created_at)}</td>
       </tr>`).join('')
   }</tbody></table>${bookings.length > 150 ? `<div class="empty-note">Affichage des 150 dernières (${bookings.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune réservation.</div>`;
+}
+
+// ---------------- Support requests ("Contacter un modérateur") ----------------
+function renderSupport() {
+  const { support } = state;
+  $('#support-table').innerHTML = support.length ? `<table><thead><tr><th>Utilisateur</th><th>Raison</th><th>Message</th><th>Statut</th><th>Reçu</th><th>Actions</th></tr></thead><tbody>${
+    support.slice(0, 150).map(s => `
+      <tr>
+        <td style="font-weight:600;">${s.requester?.name || '—'}</td>
+        <td style="color:var(--muted-3);">${SUPPORT_REASON_LABELS[s.reason] || s.reason}</td>
+        <td style="color:var(--muted-3);max-width:260px;">${s.message ? s.message.slice(0, 140) : '—'}</td>
+        <td>${badgeSpan(s.status)}${s.status === 'claimed' && s.claimer?.name ? ` <span style="color:var(--muted-3);font-size:11px;">par ${s.claimer.name}</span>` : ''}</td>
+        <td style="color:var(--muted-3);font-family:var(--mono);font-size:12px;">${fmtDate(s.created_at)}</td>
+        <td>
+          ${s.status === 'open' ? `<button class="act-btn" data-act="claim" data-id="${s.id}">Prendre en charge</button>` : ''}
+          ${s.status !== 'resolved' ? `<button class="act-btn ok" data-act="resolve" data-id="${s.id}">Marquer résolu</button>` : ''}
+        </td>
+      </tr>`).join('')
+  }</tbody></table>${support.length > 150 ? `<div class="empty-note">Affichage des 150 dernières (${support.length} au total).</div>` : ''}` : `<div class="empty-note">Aucune demande de support.</div>`;
+
+  $('#support-table').querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const fn = btn.dataset.act === 'claim' ? 'moderator_claim_support_request' : 'moderator_resolve_support_request';
+      btn.disabled = true;
+      const { error } = await supabase.rpc(fn, { p_request_id: btn.dataset.id });
+      if (error) { showToast('Erreur: ' + error.message); btn.disabled = false; return; }
+      showToast(btn.dataset.act === 'claim' ? 'Demande prise en charge.' : 'Demande marquée résolue.');
+      await loadDashboard();
+    });
+  });
 }
 </script>
 </body>
