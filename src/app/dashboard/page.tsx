@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LangProvider, useLang } from "@/lib/lang";
 import { BrandMark } from "@/components/ui";
 import { Icon } from "@/components/dashboard/shared";
@@ -11,7 +11,17 @@ import WorkerDashboard from "./WorkerDashboard";
 import FreelancerDashboard from "./FreelancerDashboard";
 
 type Role = "employer" | "worker" | "freelancer";
-type GateStatus = "checking" | "need-login" | "sent" | "unauthorized" | "redirecting" | "ok" | "choose-personal" | "no-personal";
+type GateStatus =
+  | "checking"
+  | "need-login"
+  | "reset-password"
+  | "mfa-enroll"
+  | "mfa-verify"
+  | "unauthorized"
+  | "redirecting"
+  | "ok"
+  | "choose-personal"
+  | "no-personal";
 
 // Moderator/admin staff already have a working, independently-hardened
 // role-routed surface at /admin/*.html (plain HTML+JS, not this React app).
@@ -20,6 +30,8 @@ const STAFF_REDIRECT: Record<string, string> = {
   moderator: "/admin/moderator.html",
   admin: "/admin/index.html",
 };
+
+const DASHBOARD_URL = "https://www.shift-up.app/dashboard";
 
 function DashboardByRole({ role }: { role: Role }) {
   if (role === "worker") return <WorkerDashboard />;
@@ -33,89 +45,208 @@ function RoleGate() {
   const [status, setStatus] = useState<GateStatus>("checking");
   const [role, setRole] = useState<Role>("employer");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [personalChoices, setPersonalChoices] = useState<Role[]>([]);
   const [backHref, setBackHref] = useState<string | null>(null);
 
+  // Forgot-password (lightweight, reuses this same page as the recovery
+  // landing spot instead of a dedicated route).
+  const [forgotStatus, setForgotStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+
+  // TOTP 2FA — enrollment (first login) and challenge (returning login).
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [totpQr, setTotpQr] = useState<string | null>(null);
+  const [totpSecret, setTotpSecret] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaBusy, setMfaBusy] = useState(false);
+
+  const check = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      setStatus("need-login");
+      return;
+    }
+
+    // TOTP gate: signInWithPassword alone only gets the session to aal1.
+    // If the account has a verified TOTP factor, Supabase reports
+    // nextLevel "aal2" until a challenge is completed — that's our signal
+    // to block dashboard content behind a 6-digit code. If there's no
+    // factor at all yet, currentLevel/nextLevel both stay "aal1" and we
+    // route the user into enrollment instead.
+    const { data: aal, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (!aalErr && aal && aal.currentLevel !== "aal2") {
+      if (aal.nextLevel === "aal2") {
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const factor = factors?.totp?.[0];
+        if (factor) {
+          setMfaFactorId(factor.id);
+          setStatus("mfa-verify");
+          return;
+        }
+      }
+      setStatus("mfa-enroll");
+      return;
+    }
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.session.user.id).maybeSingle();
+
+    const r = profile?.role as string | undefined;
+    const params = new URLSearchParams(window.location.search);
+    const back = params.get("back");
+    if (back) setBackHref(back);
+
+    // Explicit opt-in only, never a default route: a staff account
+    // (admin/moderator/owner) clicked "switch to my dashboard" from
+    // inside their staff panel, which set ?as=personal. Show whichever
+    // worker/employer/freelancer profile this same account also holds.
+    if (params.get("as") === "personal") {
+      const profiles = await fetchMyRoleProfiles();
+      const available = (["worker", "employer", "freelancer"] as const).filter((k) => profiles[k]);
+      if (available.length === 1) {
+        setRole(available[0]);
+        setStatus("ok");
+      } else if (available.length > 1) {
+        setPersonalChoices(available);
+        setStatus("choose-personal");
+      } else {
+        setStatus("no-personal");
+      }
+      return;
+    }
+
+    if (r && STAFF_REDIRECT[r]) {
+      setStatus("redirecting");
+      window.location.href = STAFF_REDIRECT[r];
+      return;
+    }
+    if (r === "worker" || r === "freelancer") {
+      setRole(r);
+      setStatus("ok");
+    } else if (r === "employer") {
+      setRole("employer");
+      setStatus("ok");
+    } else {
+      // Includes 'owner': the CEO account must never resolve through this
+      // public login door — only the private admin login does.
+      setStatus("unauthorized");
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    async function check() {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        if (!cancelled) setStatus("need-login");
-        return;
-      }
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.session.user.id).maybeSingle();
+    // supabase-js emits an "INITIAL_SESSION" event as soon as a listener is
+    // registered (with the session restored from storage, or null), so we
+    // don't need a separate direct call to check() on mount — every case
+    // (initial load, sign-in, sign-out, token refresh) flows through here.
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (cancelled) return;
-
-      const r = profile?.role as string | undefined;
-      const params = new URLSearchParams(window.location.search);
-      const back = params.get("back");
-      if (back) setBackHref(back);
-
-      // Explicit opt-in only, never a default route: a staff account
-      // (admin/moderator/owner) clicked "switch to my dashboard" from
-      // inside their staff panel, which set ?as=personal. Show whichever
-      // worker/employer/freelancer profile this same account also holds.
-      if (params.get("as") === "personal") {
-        const profiles = await fetchMyRoleProfiles();
-        if (cancelled) return;
-        const available = (["worker", "employer", "freelancer"] as const).filter((k) => profiles[k]);
-        if (available.length === 1) {
-          setRole(available[0]);
-          setStatus("ok");
-        } else if (available.length > 1) {
-          setPersonalChoices(available);
-          setStatus("choose-personal");
-        } else {
-          setStatus("no-personal");
-        }
+      // Landed here via the "reset password" email link — Supabase already
+      // exchanged the recovery token for a session, we just need the
+      // "set a new password" form, not the normal gate logic.
+      if (event === "PASSWORD_RECOVERY") {
+        setStatus("reset-password");
         return;
       }
-
-      if (r && STAFF_REDIRECT[r]) {
-        setStatus("redirecting");
-        window.location.href = STAFF_REDIRECT[r];
-        return;
-      }
-      if (r === "worker" || r === "freelancer") {
-        setRole(r);
-        setStatus("ok");
-      } else if (r === "employer") {
-        setRole("employer");
-        setStatus("ok");
-      } else {
-        // Includes 'owner': the CEO account must never resolve through this
-        // public, magic-link-gated door — only the private admin login does.
-        setStatus("unauthorized");
-      }
-    }
-    check();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => check());
+      check();
+    });
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [check]);
 
-  const sendLink = async () => {
-    setError(null);
-    if (!email.trim()) return;
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: false, emailRedirectTo: "https://www.shift-up.app/dashboard" },
-    });
-    if (err) {
-      if (err.status === 429 || err.code === "over_email_send_rate_limit") {
-        setError(isFr
-          ? "Trop de tentatives. Attendez quelques minutes avant de réessayer."
-          : "Too many attempts. Wait a few minutes before trying again.");
-      } else {
-        setError(isFr ? "Ce courriel n'est pas encore enregistré." : "This email isn't registered yet.");
+  // Kick off TOTP enrollment as soon as we land in that state.
+  useEffect(() => {
+    if (status !== "mfa-enroll" || totpQr) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error: err } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+      if (cancelled) return;
+      if (err) {
+        setError(isFr ? "Impossible de démarrer la configuration 2FA." : "Couldn't start 2FA setup.");
+        return;
       }
+      // qr_code is a raw SVG string; per Supabase's docs this is rendered
+      // directly as an <img> src by prefixing the data: URI — no QR-code
+      // library needed.
+      setTotpQr(`data:image/svg+xml;utf-8,${encodeURIComponent(data.totp.qr_code)}`);
+      setTotpSecret(data.totp.secret);
+      setMfaFactorId(data.id);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, totpQr, isFr]);
+
+  const signIn = async () => {
+    setError(null);
+    if (!email.trim() || !password) return;
+    // Replaces the old signInWithOtp magic-link flow: that was pulled after
+    // repeated logins tripped Supabase's free-tier email rate limit
+    // (429 / over_email_send_rate_limit). Password + TOTP 2FA below doesn't
+    // send an email per login, so the rate limit no longer applies here.
+    const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (err) {
+      setError(isFr ? "Courriel ou mot de passe incorrect." : "Incorrect email or password.");
       return;
     }
-    setStatus("sent");
+    // onAuthStateChange fires SIGNED_IN, which re-runs check() above.
+  };
+
+  const sendResetLink = async () => {
+    setError(null);
+    if (!email.trim()) {
+      setError(isFr ? "Entrez votre courriel ci-dessus d'abord." : "Enter your email above first.");
+      return;
+    }
+    setForgotStatus("sending");
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: DASHBOARD_URL });
+    if (err) {
+      setForgotStatus("idle");
+      setError(isFr ? "Impossible d'envoyer le lien. Réessayez plus tard." : "Couldn't send the link. Try again later.");
+      return;
+    }
+    setForgotStatus("sent");
+  };
+
+  const submitNewPassword = async () => {
+    setError(null);
+    if (newPassword.length < 8) {
+      setError(isFr ? "Le mot de passe doit contenir au moins 8 caractères." : "Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setError(isFr ? "Les mots de passe ne correspondent pas." : "Passwords don't match.");
+      return;
+    }
+    const { error: err } = await supabase.auth.updateUser({ password: newPassword });
+    if (err) {
+      setError(isFr ? "Impossible de mettre à jour le mot de passe." : "Couldn't update the password.");
+      return;
+    }
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    check();
+  };
+
+  const verifyMfaCode = async () => {
+    if (!mfaFactorId || mfaCode.trim().length !== 6) return;
+    setMfaBusy(true);
+    setError(null);
+    const { error: err } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode.trim() });
+    setMfaBusy(false);
+    if (err) {
+      setError(isFr ? "Code invalide. Réessayez." : "Invalid code. Try again.");
+      setMfaCode("");
+      return;
+    }
+    setMfaCode("");
+    setTotpQr(null);
+    setTotpSecret(null);
+    check();
   };
 
   if (status === "ok") {
@@ -147,29 +278,148 @@ function RoleGate() {
           <>
             <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Mon espace ShiftUp" : "My ShiftUp dashboard"}</h1>
             <p className="text-[12.5px] text-white/55 mb-6">
-              {isFr ? "Connectez-vous avec votre courriel ShiftUp." : "Sign in with your ShiftUp email."}
+              {isFr ? "Connectez-vous avec votre courriel et mot de passe ShiftUp." : "Sign in with your ShiftUp email and password."}
             </p>
             <input
               type="email"
+              autoComplete="email"
               className="field mb-3"
               placeholder={isFr ? "ton@courriel.com" : "you@email.com"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendLink()}
+              onKeyDown={(e) => e.key === "Enter" && signIn()}
             />
-            <button onClick={sendLink} className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2">
-              <Icon name="lock" size={14} /> {isFr ? "Recevoir un lien de connexion" : "Send login link"}
+            <input
+              type="password"
+              autoComplete="current-password"
+              className="field mb-3"
+              placeholder={isFr ? "Mot de passe" : "Password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && signIn()}
+            />
+            <button onClick={signIn} className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2">
+              <Icon name="lock" size={14} /> {isFr ? "Se connecter" : "Sign in"}
+            </button>
+            <button
+              type="button"
+              onClick={sendResetLink}
+              disabled={forgotStatus === "sending"}
+              className="mt-3 bg-transparent border-none text-[11px] text-white/40 hover:text-white/70 underline cursor-pointer disabled:opacity-60"
+            >
+              {isFr ? "Mot de passe oublié?" : "Forgot password?"}
+            </button>
+            {forgotStatus === "sent" && (
+              <p className="text-[11.5px] text-[#7CE0A8] mt-2">
+                {isFr ? `Si ce compte existe, un lien a été envoyé à ${email}.` : `If that account exists, a link was sent to ${email}.`}
+              </p>
+            )}
+            {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
+          </>
+        )}
+
+        {status === "reset-password" && (
+          <>
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Nouveau mot de passe" : "Set a new password"}</h1>
+            <p className="text-[12.5px] text-white/55 mb-6">
+              {isFr ? "Choisissez un nouveau mot de passe pour votre compte." : "Choose a new password for your account."}
+            </p>
+            <input
+              type="password"
+              autoComplete="new-password"
+              className="field mb-3"
+              placeholder={isFr ? "Nouveau mot de passe" : "New password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              className="field mb-3"
+              placeholder={isFr ? "Confirmez le mot de passe" : "Confirm password"}
+              value={newPasswordConfirm}
+              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitNewPassword()}
+            />
+            <button onClick={submitNewPassword} className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2">
+              <Icon name="lock" size={14} /> {isFr ? "Mettre à jour" : "Update password"}
             </button>
             {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
           </>
         )}
 
-        {status === "sent" && (
+        {status === "mfa-enroll" && (
           <>
-            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Lien envoyé!" : "Link sent!"}</h1>
-            <p className="text-[12.5px] text-white/55">
-              {isFr ? `Vérifiez votre boîte courriel (${email}) et cliquez sur le lien pour continuer.` : `Check your inbox (${email}) and click the link to continue.`}
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Activer la 2FA" : "Set up 2FA"}</h1>
+            <p className="text-[12.5px] text-white/55 mb-4">
+              {isFr
+                ? "Scannez ce code avec Google Authenticator, Authy ou une app similaire, puis entrez le code à 6 chiffres."
+                : "Scan this code with Google Authenticator, Authy, or a similar app, then enter the 6-digit code."}
             </p>
+            {totpQr ? (
+              <>
+                <div className="flex justify-center mb-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={totpQr} alt="TOTP QR code" width={176} height={176} className="rounded-lg bg-white p-2" />
+                </div>
+                {totpSecret && (
+                  <p className="text-[10.5px] text-white/40 mb-4 break-all">
+                    {isFr ? "Ou entrez ce code manuellement : " : "Or enter this code manually: "}
+                    <span className="font-mono text-white/70">{totpSecret}</span>
+                  </p>
+                )}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  className="field mb-3 text-center tracking-[0.3em]"
+                  placeholder="000000"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onKeyDown={(e) => e.key === "Enter" && verifyMfaCode()}
+                />
+                <button
+                  onClick={verifyMfaCode}
+                  disabled={mfaBusy || mfaCode.length !== 6}
+                  className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <Icon name="shieldCheck" size={14} /> {isFr ? "Confirmer" : "Confirm"}
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-white/50">{isFr ? "Chargement…" : "Loading…"}</p>
+            )}
+            {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
+          </>
+        )}
+
+        {status === "mfa-verify" && (
+          <>
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Vérification en 2 étapes" : "Two-factor verification"}</h1>
+            <p className="text-[12.5px] text-white/55 mb-5">
+              {isFr ? "Entrez le code à 6 chiffres de votre app d'authentification." : "Enter the 6-digit code from your authenticator app."}
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              className="field mb-3 text-center tracking-[0.3em]"
+              placeholder="000000"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onKeyDown={(e) => e.key === "Enter" && verifyMfaCode()}
+              autoFocus
+            />
+            <button
+              onClick={verifyMfaCode}
+              disabled={mfaBusy || mfaCode.length !== 6}
+              className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Icon name="shieldCheck" size={14} /> {isFr ? "Vérifier" : "Verify"}
+            </button>
+            {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
           </>
         )}
 
