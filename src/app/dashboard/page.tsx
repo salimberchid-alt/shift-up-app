@@ -14,9 +14,8 @@ type Role = "employer" | "worker" | "freelancer";
 type GateStatus =
   | "checking"
   | "need-login"
+  | "check-email"
   | "reset-password"
-  | "mfa-enroll"
-  | "mfa-verify"
   | "unauthorized"
   | "redirecting"
   | "ok"
@@ -44,9 +43,11 @@ function RoleGate() {
   const isFr = lang === "fr";
   const [status, setStatus] = useState<GateStatus>("checking");
   const [role, setRole] = useState<Role>("employer");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [personalChoices, setPersonalChoices] = useState<Role[]>([]);
   const [backHref, setBackHref] = useState<string | null>(null);
 
@@ -56,38 +57,10 @@ function RoleGate() {
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
 
-  // TOTP 2FA — enrollment (first login) and challenge (returning login).
-  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
-  const [totpQr, setTotpQr] = useState<string | null>(null);
-  const [totpSecret, setTotpSecret] = useState<string | null>(null);
-  const [mfaCode, setMfaCode] = useState("");
-  const [mfaBusy, setMfaBusy] = useState(false);
-
   const check = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
       setStatus("need-login");
-      return;
-    }
-
-    // TOTP gate: signInWithPassword alone only gets the session to aal1.
-    // If the account has a verified TOTP factor, Supabase reports
-    // nextLevel "aal2" until a challenge is completed — that's our signal
-    // to block dashboard content behind a 6-digit code. If there's no
-    // factor at all yet, currentLevel/nextLevel both stay "aal1" and we
-    // route the user into enrollment instead.
-    const { data: aal, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (!aalErr && aal && aal.currentLevel !== "aal2") {
-      if (aal.nextLevel === "aal2") {
-        const { data: factors } = await supabase.auth.mfa.listFactors();
-        const factor = factors?.totp?.[0];
-        if (factor) {
-          setMfaFactorId(factor.id);
-          setStatus("mfa-verify");
-          return;
-        }
-      }
-      setStatus("mfa-enroll");
       return;
     }
 
@@ -158,42 +131,51 @@ function RoleGate() {
     };
   }, [check]);
 
-  // Kick off TOTP enrollment as soon as we land in that state.
-  useEffect(() => {
-    if (status !== "mfa-enroll" || totpQr) return;
-    let cancelled = false;
-    (async () => {
-      const { data, error: err } = await supabase.auth.mfa.enroll({ factorType: "totp" });
-      if (cancelled) return;
-      if (err) {
-        setError(isFr ? "Impossible de démarrer la configuration 2FA." : "Couldn't start 2FA setup.");
-        return;
-      }
-      // qr_code is a raw SVG string; per Supabase's docs this is rendered
-      // directly as an <img> src by prefixing the data: URI — no QR-code
-      // library needed.
-      setTotpQr(`data:image/svg+xml;utf-8,${encodeURIComponent(data.totp.qr_code)}`);
-      setTotpSecret(data.totp.secret);
-      setMfaFactorId(data.id);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [status, totpQr, isFr]);
-
+  // Replaces the old signInWithOtp magic-link flow: that was pulled after
+  // repeated logins tripped Supabase's free-tier email rate limit (429 /
+  // over_email_send_rate_limit). Plain password auth doesn't send an email
+  // per login, so the rate limit no longer applies here. A TOTP 2FA layer
+  // was tried on top of this and pulled again (broken QR enrollment) —
+  // revisit stronger auth later; this is intentionally simple for now.
   const signIn = async () => {
     setError(null);
     if (!email.trim() || !password) return;
-    // Replaces the old signInWithOtp magic-link flow: that was pulled after
-    // repeated logins tripped Supabase's free-tier email rate limit
-    // (429 / over_email_send_rate_limit). Password + TOTP 2FA below doesn't
-    // send an email per login, so the rate limit no longer applies here.
+    setBusy(true);
     const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    setBusy(false);
     if (err) {
       setError(isFr ? "Courriel ou mot de passe incorrect." : "Incorrect email or password.");
       return;
     }
     // onAuthStateChange fires SIGNED_IN, which re-runs check() above.
+  };
+
+  // First-time registration: same email-confirmation gate as the mobile
+  // app (see shiftup-app AuthScreen.tsx) — signUp() sends a confirmation
+  // email and returns no session until the user clicks it.
+  const signUp = async () => {
+    setError(null);
+    if (!email.trim() || password.length < 8) {
+      setError(isFr ? "Le mot de passe doit contenir au moins 8 caractères." : "Password must be at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    const { data, error: err } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: DASHBOARD_URL },
+    });
+    setBusy(false);
+    if (err) {
+      setError(isFr ? "Impossible de créer le compte. Réessayez." : "Couldn't create the account. Try again.");
+      return;
+    }
+    if (!data.session) {
+      setStatus("check-email");
+      return;
+    }
+    // Confirmation is off on this project — signUp() already returned a
+    // live session; onAuthStateChange fires SIGNED_IN, which re-runs check().
   };
 
   const sendResetLink = async () => {
@@ -232,23 +214,6 @@ function RoleGate() {
     check();
   };
 
-  const verifyMfaCode = async () => {
-    if (!mfaFactorId || mfaCode.trim().length !== 6) return;
-    setMfaBusy(true);
-    setError(null);
-    const { error: err } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode.trim() });
-    setMfaBusy(false);
-    if (err) {
-      setError(isFr ? "Code invalide. Réessayez." : "Invalid code. Try again.");
-      setMfaCode("");
-      return;
-    }
-    setMfaCode("");
-    setTotpQr(null);
-    setTotpSecret(null);
-    check();
-  };
-
   if (status === "ok") {
     return (
       <>
@@ -276,9 +241,15 @@ function RoleGate() {
 
         {status === "need-login" && (
           <>
-            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Mon espace ShiftUp" : "My ShiftUp dashboard"}</h1>
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">
+              {authMode === "login"
+                ? (isFr ? "Mon espace ShiftUp" : "My ShiftUp dashboard")
+                : (isFr ? "Créer un compte" : "Create an account")}
+            </h1>
             <p className="text-[12.5px] text-white/55 mb-6">
-              {isFr ? "Connectez-vous avec votre courriel et mot de passe ShiftUp." : "Sign in with your ShiftUp email and password."}
+              {authMode === "login"
+                ? (isFr ? "Connectez-vous avec votre courriel et mot de passe ShiftUp." : "Sign in with your ShiftUp email and password.")
+                : (isFr ? "Un courriel de confirmation te sera envoyé." : "A confirmation email will be sent to you.")}
             </p>
             <input
               type="email"
@@ -287,34 +258,67 @@ function RoleGate() {
               placeholder={isFr ? "ton@courriel.com" : "you@email.com"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && signIn()}
+              onKeyDown={(e) => e.key === "Enter" && (authMode === "login" ? signIn() : signUp())}
             />
             <input
               type="password"
-              autoComplete="current-password"
+              autoComplete={authMode === "login" ? "current-password" : "new-password"}
               className="field mb-3"
               placeholder={isFr ? "Mot de passe" : "Password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && signIn()}
+              onKeyDown={(e) => e.key === "Enter" && (authMode === "login" ? signIn() : signUp())}
             />
-            <button onClick={signIn} className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2">
-              <Icon name="lock" size={14} /> {isFr ? "Se connecter" : "Sign in"}
+            <button
+              onClick={authMode === "login" ? signIn : signUp}
+              disabled={busy}
+              className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Icon name="lock" size={14} />
+              {authMode === "login" ? (isFr ? "Se connecter" : "Sign in") : (isFr ? "Créer le compte" : "Create account")}
             </button>
             <button
               type="button"
-              onClick={sendResetLink}
-              disabled={forgotStatus === "sending"}
-              className="mt-3 bg-transparent border-none text-[11px] text-white/40 hover:text-white/70 underline cursor-pointer disabled:opacity-60"
+              onClick={() => { setAuthMode(m => (m === "login" ? "signup" : "login")); setError(null); }}
+              className="mt-3 bg-transparent border-none text-[11px] text-white/40 hover:text-white/70 underline cursor-pointer"
             >
-              {isFr ? "Mot de passe oublié?" : "Forgot password?"}
+              {authMode === "login"
+                ? (isFr ? "Pas de compte? Créer un compte" : "No account? Create one")
+                : (isFr ? "Déjà un compte? Se connecter" : "Already have an account? Sign in")}
             </button>
+            {authMode === "login" && (
+              <button
+                type="button"
+                onClick={sendResetLink}
+                disabled={forgotStatus === "sending"}
+                className="block mt-2 bg-transparent border-none text-[11px] text-white/40 hover:text-white/70 underline cursor-pointer disabled:opacity-60"
+              >
+                {isFr ? "Mot de passe oublié?" : "Forgot password?"}
+              </button>
+            )}
             {forgotStatus === "sent" && (
               <p className="text-[11.5px] text-[#7CE0A8] mt-2">
                 {isFr ? `Si ce compte existe, un lien a été envoyé à ${email}.` : `If that account exists, a link was sent to ${email}.`}
               </p>
             )}
             {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
+          </>
+        )}
+
+        {status === "check-email" && (
+          <>
+            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Vérifie ton courriel" : "Check your email"}</h1>
+            <p className="text-[12.5px] text-white/55 mb-5">
+              {isFr
+                ? `On t'a envoyé un lien de confirmation à ${email}. Clique dessus, puis reviens te connecter.`
+                : `We sent a confirmation link to ${email}. Click it, then come back and sign in.`}
+            </p>
+            <button
+              onClick={() => { setStatus("need-login"); setAuthMode("login"); }}
+              className="w-full py-3 rounded-[11px] bg-white/[0.05] border border-white/10 text-white/70 text-[13px] font-bold cursor-pointer"
+            >
+              {isFr ? "Retour à la connexion" : "Back to sign in"}
+            </button>
           </>
         )}
 
@@ -343,81 +347,6 @@ function RoleGate() {
             />
             <button onClick={submitNewPassword} className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2">
               <Icon name="lock" size={14} /> {isFr ? "Mettre à jour" : "Update password"}
-            </button>
-            {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
-          </>
-        )}
-
-        {status === "mfa-enroll" && (
-          <>
-            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Activer la 2FA" : "Set up 2FA"}</h1>
-            <p className="text-[12.5px] text-white/55 mb-4">
-              {isFr
-                ? "Scannez ce code avec Google Authenticator, Authy ou une app similaire, puis entrez le code à 6 chiffres."
-                : "Scan this code with Google Authenticator, Authy, or a similar app, then enter the 6-digit code."}
-            </p>
-            {totpQr ? (
-              <>
-                <div className="flex justify-center mb-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={totpQr} alt="TOTP QR code" width={176} height={176} className="rounded-lg bg-white p-2" />
-                </div>
-                {totpSecret && (
-                  <p className="text-[10.5px] text-white/40 mb-4 break-all">
-                    {isFr ? "Ou entrez ce code manuellement : " : "Or enter this code manually: "}
-                    <span className="font-mono text-white/70">{totpSecret}</span>
-                  </p>
-                )}
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  className="field mb-3 text-center tracking-[0.3em]"
-                  placeholder="000000"
-                  value={mfaCode}
-                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  onKeyDown={(e) => e.key === "Enter" && verifyMfaCode()}
-                />
-                <button
-                  onClick={verifyMfaCode}
-                  disabled={mfaBusy || mfaCode.length !== 6}
-                  className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <Icon name="shieldCheck" size={14} /> {isFr ? "Confirmer" : "Confirm"}
-                </button>
-              </>
-            ) : (
-              <p className="text-sm text-white/50">{isFr ? "Chargement…" : "Loading…"}</p>
-            )}
-            {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
-          </>
-        )}
-
-        {status === "mfa-verify" && (
-          <>
-            <h1 className="font-display text-lg font-extrabold text-white mb-1.5">{isFr ? "Vérification en 2 étapes" : "Two-factor verification"}</h1>
-            <p className="text-[12.5px] text-white/55 mb-5">
-              {isFr ? "Entrez le code à 6 chiffres de votre app d'authentification." : "Enter the 6-digit code from your authenticator app."}
-            </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              className="field mb-3 text-center tracking-[0.3em]"
-              placeholder="000000"
-              value={mfaCode}
-              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              onKeyDown={(e) => e.key === "Enter" && verifyMfaCode()}
-              autoFocus
-            />
-            <button
-              onClick={verifyMfaCode}
-              disabled={mfaBusy || mfaCode.length !== 6}
-              className="w-full py-3 rounded-[11px] grad-violet border-none text-white text-[13px] font-bold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              <Icon name="shieldCheck" size={14} /> {isFr ? "Vérifier" : "Verify"}
             </button>
             {error && <p className="text-[12px] text-[#FF4D6D] mt-3">{error}</p>}
           </>
