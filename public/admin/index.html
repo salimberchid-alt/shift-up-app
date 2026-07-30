@@ -221,7 +221,7 @@
       <button class="tab-btn" data-view="listings">Annonces</button>
       <button class="tab-btn" data-view="moderation">Modération</button>
       <button class="tab-btn" data-view="bookings">Réservations</button>
-      <button class="tab-btn" data-view="messages">Messages</button>
+      <button class="tab-btn" data-view="messages">Messages<span id="messages-badge" style="display:none;margin-left:6px;background:#ff3b30;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;"></span></button>
     </div>
 
     <!-- OVERVIEW -->
@@ -539,6 +539,7 @@ async function loadDashboard() {
     renderJobsTab({ jobs });
     renderListingsTab({ listings });
     renderModeration({ jobs, listings, profiles });
+    updateMessagesBadge();
 
     $('#last-updated').textContent = 'Mis à jour ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
 
@@ -977,6 +978,20 @@ let dmActiveThreadId = null;
 
 const fmtDateTime = d => fmtDate(d) + ' ' + new Date(d).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
 
+async function updateMessagesBadge() {
+  const { data: threads } = await supabase.from('staff_dm_threads').select('id').eq('ceo_id', currentUserId);
+  const ids = (threads ?? []).map(t => t.id);
+  let count = 0;
+  if (ids.length) {
+    const { count: c } = await supabase.from('staff_dm_messages').select('id', { count: 'exact', head: true })
+      .in('thread_id', ids).neq('sender_id', currentUserId).is('read_at', null);
+    count = c ?? 0;
+  }
+  const badge = $('#messages-badge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-block' : 'none';
+}
+
 async function renderMessagesTab() {
   $('#dm-thread-list').innerHTML = '<div class="empty-note">Chargement…</div>';
 
@@ -1032,10 +1047,13 @@ function renderDmThreadList() {
   }).join('') : '<div class="empty-note">Aucune conversation pour l’instant.</div>';
 
   $('#dm-thread-list').querySelectorAll('[data-open-thread]').forEach(row => {
-    row.addEventListener('click', () => {
+    row.addEventListener('click', async () => {
       dmActiveThreadId = row.dataset.openThread;
       renderDmThreadList();
       renderDmThreadBody();
+      await supabase.from('staff_dm_messages').update({ read_at: new Date().toISOString() })
+        .eq('thread_id', dmActiveThreadId).neq('sender_id', currentUserId).is('read_at', null);
+      updateMessagesBadge();
     });
   });
 }
