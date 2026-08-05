@@ -81,7 +81,10 @@ function PhoneImage({ src, alt, onRatio }: { src: string; alt: string; onRatio: 
       src={src}
       alt={alt}
       fill
-      sizes="300px"
+      // Matches the widest rendered frame. Undersizing this was making Next
+      // serve a 384w file into a frame that is now larger, which is a good
+      // part of why the app UI in the shot read as mush.
+      sizes="(min-width: 640px) 340px, 290px"
       className="object-contain"
       style={{ opacity: shown ? 1 : 0, transition: "opacity 0.5s ease" }}
       priority
@@ -97,10 +100,13 @@ function PhoneMockup({
   img,
   alt,
   badge,
+  glow,
 }: {
   img: string;
   alt: string;
   badge?: { label: string; color: string } | null;
+  /** Accent of the feature currently in view; tints the halo behind the device. */
+  glow?: string;
 }) {
   // Real device aspect ratio (~0.462) as a sane default until the actual
   // image loads and reports its own — the two screenshots in rotation
@@ -109,23 +115,73 @@ function PhoneMockup({
   const [ratio, setRatio] = useState(0.462);
 
   return (
-    <div
-      className="glass-bezel relative w-[260px] sm:w-[300px] rounded-[52px] p-3.5"
-      style={{ aspectRatio: String(ratio), transition: "aspect-ratio 0.45s ease", animation: "floatSlow 7s ease-in-out infinite" }}
-    >
-      <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-[#16131f]">
-        <PhoneImage src={img} alt={alt} onRatio={setRatio} />
+    <div className="relative">
+      {/* Halo behind the device. The mockup sits on a near-black section, so
+          without something behind it the phone reads as a hole in the page
+          rather than an object on it. Tinted by the feature in view, which
+          also makes the sticky column visibly respond to scrolling. */}
+      <div
+        aria-hidden
+        className="absolute -inset-10 rounded-[80px] pointer-events-none transition-colors duration-700"
+        style={{
+          // color-mix, not an appended alpha hex: `glow` arrives as a CSS
+          // custom-property reference (var(--color-leaf)), and "var(...)22"
+          // is not a colour.
+          background: `radial-gradient(closest-side, color-mix(in srgb, ${glow ?? "var(--color-violet)"} 22%, transparent), transparent 78%)`,
+          filter: "blur(6px)",
+        }}
+      />
+      {/* On desktop the device is sized by HEIGHT, not width: the column is
+          sticky, so a phone taller than the viewport gets its top silently
+          clipped and the badge ends up floating away from a frame nobody can
+          see. Height comes from the viewport with a cap, and width follows
+          from aspect-ratio, so it fits any laptop. Mobile keeps width-based
+          sizing since nothing is sticky there. */}
+      <div
+        className="glass-bezel relative w-[290px] sm:w-[340px] lg:w-auto lg:h-[min(700px,calc(100vh-15rem))] rounded-[54px] p-[11px]"
+        style={{
+          aspectRatio: String(ratio),
+          transition: "aspect-ratio 0.45s ease",
+          animation: "floatSlow 7s ease-in-out infinite",
+        }}
+      >
+        {/* Side buttons. They sit on the bezel, never over the screen, so the
+            frame reads as a device without covering a pixel of the app. The
+            previous version was a plain rounded rectangle, which at this size
+            looked like a dark slab rather than a phone. */}
+        <span aria-hidden className="absolute -left-[2.5px] top-[22%] h-8 w-[3px] rounded-l-full bg-white/25" />
+        <span aria-hidden className="absolute -left-[2.5px] top-[32%] h-12 w-[3px] rounded-l-full bg-white/20" />
+        <span aria-hidden className="absolute -right-[2.5px] top-[27%] h-16 w-[3px] rounded-r-full bg-white/25" />
+
+        <div className="relative w-full h-full rounded-[44px] overflow-hidden bg-[#16131f]">
+          <PhoneImage src={img} alt={alt} onRatio={setRatio} />
+          {/* Screen glass: a single diagonal sheen. Kept under 8% so it never
+              fights the UI underneath, which is the whole point of the shot. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none rounded-[44px]"
+            style={{
+              background: "linear-gradient(122deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 38%)",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
+            }}
+          />
+        </div>
+        {/* The positioning and the glass surface have to be on separate
+            elements. `.glass-pill` in globals.css sets position:relative as
+            plain CSS, which outranks Tailwind's `absolute` utility, so
+            "glass-pill absolute" silently produced a relatively positioned
+            box: the badge laid out in flow under the phone, stretched to the
+            bezel's full content width, sitting on top of the caption. */}
+        {badge && (
+          <PopIn key={badge.label} className="absolute -right-3 sm:-right-7 top-9 z-10">
+            <span className="glass-pill block px-3.5 py-2 rounded-full whitespace-nowrap">
+              <span className="text-[11.5px] font-bold tracking-[0.3px]" style={{ color: badge.color }}>
+                {badge.label}
+              </span>
+            </span>
+          </PopIn>
+        )}
       </div>
-      {badge && (
-        <PopIn
-          key={badge.label}
-          className="glass-pill absolute -right-3 sm:-right-5 top-10 px-3.5 py-2 rounded-full whitespace-nowrap"
-        >
-          <span className="text-[11.5px] font-bold tracking-[0.3px]" style={{ color: badge.color }}>
-            {badge.label}
-          </span>
-        </PopIn>
-      )}
     </div>
   );
 }
@@ -133,7 +189,12 @@ function PhoneMockup({
 function FeatureCopy({ feature, isActive }: { feature: Feature; isActive: boolean }) {
   const accentVar = ACCENT_VAR[feature.accent];
   return (
-    <div id={feature.id} className="lg:min-h-[46vh] flex flex-col justify-center py-10 lg:py-0 lg:pb-[26vh]">
+    // The trailing padding is a balance, not a cleanup. Cutting it to zero
+    // removed the black void under the last feature but also shortened the
+    // sticky track next to it, so the phone released early and scrolled off
+    // half-clipped while its copy was still on screen. 10vh keeps the device
+    // anchored to the end of the copy without leaving a hole.
+    <div id={feature.id} className="lg:min-h-[38vh] flex flex-col justify-center py-10 lg:py-0 lg:pb-[15vh] lg:last:pb-[20vh]">
       <FadeIn className="text-center lg:text-left">
         <div
           className="font-bold text-[13px] tracking-[0.8px] uppercase mb-3.5 transition-opacity duration-300"
@@ -166,7 +227,7 @@ function ShowcaseSection() {
   const badge = activeFeature ? { label: activeFeature.eyebrow, color: ACCENT_VAR[activeFeature.accent] } : null;
 
   return (
-    <section className="relative max-w-[1280px] mx-auto px-6 sm:px-12 pt-28 sm:pt-36 pb-20 sm:pb-28">
+    <section className="relative max-w-[1280px] mx-auto px-6 sm:px-12 pt-28 sm:pt-36 pb-10 sm:pb-14">
       <div
         aria-hidden
         className="absolute w-[400px] h-[400px] sm:w-[520px] sm:h-[520px] rounded-full -top-10 sm:-top-16 -left-24 sm:-left-36 pointer-events-none"
@@ -180,7 +241,11 @@ function ShowcaseSection() {
 
       <div className="relative lg:flex gap-14 xl:gap-20">
         <div className="flex-1 max-w-[560px] mx-auto lg:mx-0">
-          <FadeIn className="text-center lg:text-left pb-16 sm:pb-20 lg:pb-[26vh]">
+          {/* Was pb-[26vh]. On a 900px viewport that is 234px of nothing
+              between the stats and the first feature, which on desktop left
+              the left column empty while the phone floated alone on the
+              right. The scroll-spy still has room to switch at 15vh. */}
+          <FadeIn className="text-center lg:text-left pb-14 sm:pb-16 lg:pb-[15vh]">
             <div className="inline-block px-3.5 py-1.5 rounded-full bg-[#8B7CFF]/[0.14] border border-[#8B7CFF]/30 text-[--color-violet-text] text-[12.5px] font-bold tracking-[0.3px] mb-5">
               {t.hero.eyebrow}
             </div>
@@ -216,7 +281,7 @@ function ShowcaseSection() {
             </div>
           </FadeIn>
 
-          <div className="lg:hidden flex justify-center mb-16">
+          <div className="lg:hidden flex justify-center mb-14">
             <PhoneMockup img={t.features[0].img} alt={t.demo.label} badge={null} />
           </div>
 
@@ -225,12 +290,22 @@ function ShowcaseSection() {
           ))}
         </div>
 
-        <div className="hidden lg:block w-[300px] xl:w-[320px] shrink-0">
-          <div className="sticky top-28 flex flex-col items-center gap-4">
-            <div className="text-xs font-bold text-white/45 tracking-widest uppercase">📱 {t.demo.label}</div>
-            <PhoneMockup img={img} alt={activeFeature?.alt ?? t.demo.label} badge={badge} />
-            <div className="text-[11px] text-white/45 mt-6">{t.demo.sub}</div>
-            <div className="glass-pill flex items-center gap-2 px-3 py-2.5 rounded-full mt-1">
+        <div className="hidden lg:block w-[340px] xl:w-[360px] shrink-0">
+          <div className="sticky top-20 flex flex-col items-center gap-4">
+            {/* Was faint 12px text at 45% opacity, effectively invisible on
+                black. "A real screenshot, not a mockup" is a trust claim and
+                worth reading. */}
+            <div className="glass-pill px-3.5 py-1.5 rounded-full text-[10.5px] font-bold text-white/75 tracking-[1.2px] uppercase">
+              📱 {t.demo.label}
+            </div>
+            <PhoneMockup
+              img={img}
+              alt={activeFeature?.alt ?? t.demo.label}
+              badge={badge}
+              glow={activeFeature ? ACCENT_VAR[activeFeature.accent] : undefined}
+            />
+            <div className="text-[11.5px] text-white/50 mt-2 text-center">{t.demo.sub}</div>
+            <div className="glass-pill flex items-center gap-2 px-3 py-2.5 rounded-full">
               {t.features.map((f) => (
                 <span
                   key={f.id}
