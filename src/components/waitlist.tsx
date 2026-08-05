@@ -27,7 +27,14 @@ export function WaitlistSection() {
       email: email.trim(),
       options: {
         shouldCreateUser: true,
-        data: { role },
+        // `source` is what makes a launch announcement possible. This form
+        // creates a real auth user, identical in auth.users to somebody who
+        // installed the app and signed up, so without a flag there is no way
+        // to email "the app is live" to the people still waiting for it
+        // without also emailing everyone already using it. signed_up_at is
+        // separate from created_at because created_at moves if the row is
+        // ever recreated, and the cohort date is the useful part.
+        data: { role, source: "website_waitlist", signed_up_at: new Date().toISOString() },
         emailRedirectTo: "https://www.shift-up.app/",
       },
     });
