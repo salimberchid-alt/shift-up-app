@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
+import { Analytics } from "@/components/analytics";
+import { ConsentBanner } from "@/components/consent";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -50,7 +52,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
+        {/* Vercel Analytics reports traffic to us; the two below report
+            conversions to Meta and Google, which is what actually lets a
+            campaign optimise. Different jobs, so both stay. */}
+        <VercelAnalytics />
         <Analytics />
+        <ConsentBanner />
       </body>
     </html>
   );

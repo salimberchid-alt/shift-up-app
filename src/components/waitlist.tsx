@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLang } from "@/lib/lang";
 import { supabase } from "@/lib/supabaseClient";
+import { trackConversion } from "@/lib/tracking";
 import { FadeIn } from "./ui";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -31,6 +32,11 @@ export function WaitlistSection() {
       },
     });
     setStatus(error ? "error" : "success");
+    // The only conversion this site can currently produce, so it is the one
+    // Meta and Google optimise against. Fired on success only: a failed
+    // signup that still reports a lead teaches the algorithm to buy the
+    // traffic that fails.
+    if (!error) trackConversion("waitlist_lead", { email: email.trim(), params: { role } });
   };
 
   return (
